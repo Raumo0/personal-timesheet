@@ -77,10 +77,20 @@ export function AppShell() {
 
   return (
     <div className="flex h-screen min-h-[640px] overflow-hidden bg-muted/35">
+      <a
+        className="sr-only z-50 rounded-lg bg-background px-3 py-2 text-sm font-medium shadow-lg focus:not-sr-only focus:fixed focus:top-4 focus:left-4"
+        href="#main-content"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById("main-content")?.focus();
+        }}
+      >
+        Skip to main content
+      </a>
       <aside
         aria-label="Application sidebar"
         className={cn(
-          "relative flex shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-out",
+          "relative flex shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-out motion-reduce:transition-none",
           isCollapsed ? "w-[4.5rem]" : "w-60",
         )}
       >
@@ -138,19 +148,15 @@ export function AppShell() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-16 shrink-0 items-center justify-between border-b bg-background/90 px-5 backdrop-blur">
-          <div>
-            <p className="text-sm font-medium">{activeDestination.label}</p>
-            <p className="text-xs text-muted-foreground">Personal workspace</p>
-          </div>
+          <p className="text-sm font-medium">Personal workspace</p>
           <ThemeMenu />
         </header>
 
         <main
-          className={cn(
-            "min-w-0 flex-1 overflow-auto",
-            activeDestination.density === "compact" ? "p-5" : "p-8",
-          )}
+          className="min-w-0 flex-1 overflow-auto p-8"
           data-density={activeDestination.density}
+          id="main-content"
+          tabIndex={-1}
         >
           <div
             className={cn(

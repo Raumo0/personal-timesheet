@@ -117,4 +117,31 @@ describe("application shell", () => {
       "comfortable",
     );
   });
+
+  test("keeps page chrome aligned across workspace densities", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    const main = screen.getByRole("main");
+
+    expect(main).toHaveClass("p-8");
+    expect(screen.getAllByText("Timesheet")).toHaveLength(2);
+    expect(screen.getAllByText("Local workspace")).toHaveLength(1);
+
+    await user.click(screen.getByRole("link", { name: "Reports" }));
+
+    expect(main).toHaveClass("p-8");
+    expect(screen.getAllByText("Reports")).toHaveLength(2);
+  });
+
+  test("moves focus directly to the main workspace", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(
+      screen.getByRole("link", { name: "Skip to main content" }),
+    );
+
+    expect(screen.getByRole("main")).toHaveFocus();
+  });
 });

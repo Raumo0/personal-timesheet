@@ -8,13 +8,10 @@ export function ProductPage({
   return (
     <div className="flex min-h-full flex-col">
       <header className="max-w-3xl">
-        <p className="mb-2 text-xs font-semibold tracking-[0.14em] text-primary uppercase">
-          Personal workspace
-        </p>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+        <h1 className="text-balance text-2xl font-semibold tracking-tight text-foreground">
           {destination.label}
         </h1>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+        <p className="mt-2 text-pretty text-sm leading-6 text-muted-foreground">
           {destination.description}
         </p>
       </header>
