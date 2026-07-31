@@ -30,5 +30,5 @@
 ## 5. Verification and Handoff
 
 - [x] 5.1 Run `pnpm test`, `pnpm build`, `cargo test --manifest-path src-tauri/Cargo.toml`, `cargo check --manifest-path src-tauri/Cargo.toml`, and `openspec validate manage-clients-locally --strict`; resolve every relevant failure.
-- [ ] 5.2 Run the native application with `pnpm tauri dev`, verify fresh initialization plus create/edit/zero-rate/archive/restart behavior, inspect light and dark themes, then stop all development processes.
+- [x] 5.2 Run the native application with `pnpm tauri dev`, verify fresh initialization plus create/edit/zero-rate/archive/restart behavior, inspect light and dark themes, then stop all development processes.
 - [x] 5.3 Update `.workspace/WORKPLAN.md` with the completed slice and next backup/restore priority, inspect `git diff --check` and `git status --short`, and commit implementation changes in independently understandable Conventional Commits.

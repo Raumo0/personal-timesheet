@@ -9,7 +9,7 @@ consistent navigation, workspace density, theming, and accessible interaction.
 
 ### Requirement: Primary product navigation
 The application SHALL provide persistent primary navigation to Timesheet,
-Reports, Expenses, and Settings.
+Clients, Reports, Expenses, and Settings.
 
 #### Scenario: Navigate between product areas
 - **WHEN** the user selects a primary navigation destination
