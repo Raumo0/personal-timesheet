@@ -52,6 +52,23 @@ Check the Rust application:
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
+## Specification Workflow
+
+OpenSpec stores implemented behavior in `openspec/specs/` and proposed changes
+in `openspec/changes/`.
+
+```bash
+pnpm spec list
+pnpm spec:doctor
+```
+
+In Codex, start uncertain work with `$openspec-explore` or create a reviewable
+feature change with `$openspec-propose`. Implement with
+`$openspec-apply-change`, then synchronize and archive the completed change.
+
+Small documentation and configuration changes do not require an OpenSpec
+change. Behavioral fixes still use test-driven development.
+
 ## Project Skills
 
 Project-local agent skills are stored in `.agents/skills/` and locked in
@@ -72,6 +89,8 @@ Repository-wide working rules are defined in [`AGENTS.md`](AGENTS.md).
 src/                 React frontend
 src-tauri/           Tauri and Rust application
 .agents/skills/      Project-local agent workflows
+.codex/skills/       OpenSpec-generated Codex workflows
+openspec/            Product specifications and proposed changes
 AGENTS.md            Repository-wide agent instructions
 skills-lock.json     Reproducible skill sources and hashes
 ```

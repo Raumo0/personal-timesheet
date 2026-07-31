@@ -1,0 +1,35 @@
+schema: spec-driven
+
+context: |
+  Personal Timesheet is a local-first, cross-platform time-tracking
+  application for clients, projects, tasks, inherited billing rates, weekly
+  time entry, expenses, reports, and invoice-ready exports.
+  The current stack is Tauri 2, Rust, React 19, TypeScript, Vite, and pnpm.
+  Deliver small, runnable, independently reviewable vertical slices.
+  Use test-driven development for business rules and behavior.
+  AGENTS.md is the authoritative repository-wide working agreement.
+
+rules:
+  proposal:
+    - Keep one proposal focused on one independently reviewable vertical slice.
+    - State concrete non-goals whenever adjacent product scope could be inferred.
+  specs:
+    - Describe observable product behavior, not implementation details.
+    - Include concrete scenarios for inheritance, overrides, dates, and persistence when relevant.
+  design:
+    - Search for existing modules, functions, types, and UI components before proposing new ones.
+    - Prefer extending or reusing an existing interface over adding a parallel abstraction.
+    - Keep business rules in deep modules with small, testable interfaces.
+  tasks:
+    - Name exact files and verification commands for each implementation task.
+    - Express behavior changes as red-green-refactor test cycles.
+
+operations:
+  apply:
+    guidance:
+      - Use rg to search the relevant code and exports before creating a module, function, type, or UI component.
+      - Keep implementation limited to the selected change and preserve unrelated user changes.
+      - Run focused tests first, then the relevant build and Rust checks.
+  archive:
+    guidance:
+      - Verify implementation, completed tasks, and resulting main specs agree before archiving.

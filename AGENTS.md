@@ -23,6 +23,10 @@ for the same responsibility.
 
 - Deliver small vertical slices that can be run and reviewed independently.
 - Read relevant code and configuration before editing.
+- Search the relevant code and exports with `rg` before creating a new module,
+  function, type, hook, or UI component.
+- Reuse or extend an existing interface when it already owns the behavior. Do
+  not create a parallel abstraction for the same responsibility.
 - Keep changes narrow. Do not modify adjacent areas without a concrete need.
 - Prefer simple domain logic separated from UI and platform integration.
 - Use test-driven development for features, bug fixes, refactoring, and
@@ -62,6 +66,27 @@ cargo check --manifest-path src-tauri/Cargo.toml
 
 Run focused tests first when tests exist, then the relevant broader suite.
 Review `git status` and the final diff before reporting completion.
+
+## OpenSpec Workflow
+
+Use OpenSpec for new features and material behavior changes:
+
+```text
+explore → propose → apply → sync/archive
+```
+
+- Keep one OpenSpec change focused on one reviewable vertical slice.
+- Treat `openspec/specs/` as the source of truth for implemented product
+  behavior.
+- Treat `openspec/changes/` as proposed or in-progress behavior.
+- Read all context files returned by OpenSpec before implementation.
+- Do not create a second implementation plan with `writing-plans` when an
+  OpenSpec change already owns the plan.
+- Small fixes, documentation changes, and configuration maintenance may proceed
+  directly. Behavioral fixes still follow TDD.
+- Validate the change before archiving it.
+- Generated OpenSpec skills live in `.codex/skills/`. Regenerate them with
+  `pnpm exec openspec update`; do not edit them manually.
 
 ## Project Skills
 
