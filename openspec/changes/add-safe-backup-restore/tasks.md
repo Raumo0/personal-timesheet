@@ -1,8 +1,8 @@
 ## 1. Native Backup Foundation
 
-- [ ] 1.1 Add `@tauri-apps/plugin-dialog`, SQLite-enabled direct `sqlx`, and Rust `tempfile` test support to `package.json`, `pnpm-lock.yaml`, `src-tauri/Cargo.toml`, and `src-tauri/Cargo.lock`; register the dialog plugin with only required open/save permissions in `src-tauri/capabilities/default.json`; verify with `pnpm build` and `cargo check --manifest-path src-tauri/Cargo.toml`.
-- [ ] 1.2 RED: add `src-tauri/src/backup.rs` tests using temporary directories and databases for a complete consistent snapshot, protected-path rejection, destination failure, and partial-file cleanup; run `cargo test --manifest-path src-tauri/Cargo.toml backup::tests::create` and confirm the expected failures.
-- [ ] 1.3 GREEN: implement the deep native backup service, canonical app database paths, `VACUUM INTO` snapshot creation, temporary-file finalization, and product error types in `src-tauri/src/backup.rs`; rerun the focused create tests and `cargo check --manifest-path src-tauri/Cargo.toml`.
+- [x] 1.1 Add `@tauri-apps/plugin-dialog`, SQLite-enabled direct `sqlx`, and Rust `tempfile` test support to `package.json`, `pnpm-lock.yaml`, `src-tauri/Cargo.toml`, and `src-tauri/Cargo.lock`; register the dialog plugin with only required open/save permissions in `src-tauri/capabilities/default.json`; verify with `pnpm build` and `cargo check --manifest-path src-tauri/Cargo.toml`.
+- [x] 1.2 RED: add `src-tauri/src/backup.rs` tests using temporary directories and databases for a complete consistent snapshot, protected-path rejection, destination failure, and partial-file cleanup; run `cargo test --manifest-path src-tauri/Cargo.toml backup::tests::create` and confirm the expected failures.
+- [x] 1.3 GREEN: implement the deep native backup service, canonical app database paths, `VACUUM INTO` snapshot creation, temporary-file finalization, and product error types in `src-tauri/src/backup.rs`; rerun the focused create tests and `cargo check --manifest-path src-tauri/Cargo.toml`.
 
 ## 2. Safe Restore Engine
 

@@ -1,4 +1,5 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+pub mod backup;
 mod database;
 
 #[tauri::command]
@@ -18,6 +19,7 @@ pub fn run() {
                 .add_migrations(database::DATABASE_URL, database::client_migrations())
                 .build(),
         )
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![greet])
         .on_page_load(|webview, payload| {
