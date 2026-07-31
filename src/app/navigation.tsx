@@ -1,5 +1,6 @@
 import {
   CalendarDays,
+  Building2,
   ChartNoAxesCombined,
   ReceiptText,
   Settings2,
@@ -25,6 +26,14 @@ export const navigationDestinations: NavigationDestination[] = [
     emptyState: "Your weekly time entries will appear here.",
     density: "compact",
     icon: CalendarDays,
+  },
+  {
+    path: "/clients",
+    label: "Clients",
+    description: "Maintain client billing defaults and archival history.",
+    emptyState: "Add a client to establish its billing defaults.",
+    density: "comfortable",
+    icon: Building2,
   },
   {
     path: "/reports",

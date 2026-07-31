@@ -1,8 +1,13 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { MemoryRouter } from "react-router";
 
 import App from "@/App";
+import { AppShell } from "@/app/AppShell";
+import { ThemeProvider } from "@/app/theme/ThemeProvider";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { InMemoryClientCatalog } from "@/features/clients/in-memory-client-catalog";
 
 function renderApp() {
   vi.stubGlobal(
@@ -43,7 +48,7 @@ describe("application shell", () => {
     });
     const destinations = within(navigation).getAllByRole("link");
 
-    expect(destinations).toHaveLength(4);
+    expect(destinations).toHaveLength(5);
     expect(
       within(navigation).getByRole("link", { name: "Timesheet" }),
     ).toHaveAttribute("aria-current", "page");
@@ -62,6 +67,40 @@ describe("application shell", () => {
     );
   });
 
+  test("opens Clients from persistent navigation with an injected catalog", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    render(
+      <ThemeProvider>
+        <TooltipProvider>
+          <MemoryRouter>
+            <AppShell clientCatalog={new InMemoryClientCatalog()} />
+          </MemoryRouter>
+        </TooltipProvider>
+      </ThemeProvider>,
+    );
+
+    const clientsLink = screen.getByRole("link", { name: "Clients" });
+    clientsLink.focus();
+    await user.keyboard("{Enter}");
+
+    expect(
+      await screen.findByRole("heading", { name: "Clients" }),
+    ).toBeInTheDocument();
+    expect(clientsLink).toHaveAttribute("aria-current", "page");
+    expect(
+      await screen.findByRole("heading", { name: "No clients yet" }),
+    ).toBeInTheDocument();
+  });
+
   test("keeps destinations accessible when the sidebar is collapsed", async () => {
     const user = userEvent.setup();
     renderApp();
@@ -76,6 +115,7 @@ describe("application shell", () => {
     expect(
       screen.getByRole("link", { name: "Timesheet" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Clients" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Reports" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Expenses" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();

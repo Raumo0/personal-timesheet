@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import {
   ChevronsLeft,
   ChevronsRight,
@@ -20,12 +20,19 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import type { ClientCatalog } from "@/features/clients/client-catalog";
 
 import {
   navigationDestinations,
   type NavigationDestination,
 } from "./navigation";
 import { ProductPage } from "./pages/ProductPage";
+
+const ClientsPage = lazy(() =>
+  import("@/features/clients/ClientsPage").then((module) => ({
+    default: module.ClientsPage,
+  })),
+);
 
 function SidebarDestination({
   destination,
@@ -65,7 +72,7 @@ function SidebarDestination({
   );
 }
 
-export function AppShell() {
+export function AppShell({ clientCatalog }: { clientCatalog: ClientCatalog }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const location = useLocation();
   const activeDestination =
@@ -170,7 +177,21 @@ export function AppShell() {
               {navigationDestinations.map((destination) => (
                 <Route
                   key={destination.path}
-                  element={<ProductPage destination={destination} />}
+                  element={
+                    destination.path === "/clients" ? (
+                      <Suspense
+                        fallback={
+                          <p className="text-sm text-muted-foreground" role="status">
+                            Opening clients…
+                          </p>
+                        }
+                      >
+                        <ClientsPage catalog={clientCatalog} />
+                      </Suspense>
+                    ) : (
+                      <ProductPage destination={destination} />
+                    )
+                  }
                   path={destination.path}
                 />
               ))}

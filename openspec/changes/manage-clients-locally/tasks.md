@@ -15,17 +15,17 @@
 
 ## 3. Client Workspace
 
-- [ ] 3.1 Add the required shadcn/ui source components under `src/components/ui/` for labeled inputs, currency selection, table layout, form dialog, and archival confirmation; verify the generated components with `pnpm build` before adapting them.
-- [ ] 3.2 RED: create `src/features/clients/ClientsPage.test.tsx` for loading, empty, active, archived, create-with-rate, create-without-rate, explicit-zero, and validation-error behavior; run the focused test and confirm it fails before `ClientsPage` exists.
-- [ ] 3.3 GREEN: implement the shared form and initial catalog surface in `src/features/clients/ClientForm.tsx` and `src/features/clients/ClientsPage.tsx`; make the focused tests pass, keeping rates tabular and all fields explicitly labeled.
-- [ ] 3.4 RED: extend `ClientsPage.test.tsx` with edit, archive confirmation/cancel, load failure, save failure, preserved input, and retry scenarios; run it and confirm the new scenarios fail for the intended missing behavior.
-- [ ] 3.5 GREEN: implement the edit, archive, recovery, and retry states in the existing client form/page modules; rerun `pnpm test -- src/features/clients/ClientsPage.test.tsx` and refactor only while green.
+- [x] 3.1 Add the required shadcn/ui source components under `src/components/ui/` for labeled inputs, currency selection, table layout, form dialog, and archival confirmation; verify the generated components with `pnpm build` before adapting them.
+- [x] 3.2 RED: create `src/features/clients/ClientsPage.test.tsx` for loading, empty, active, archived, create-with-rate, create-without-rate, explicit-zero, and validation-error behavior; run the focused test and confirm it fails before `ClientsPage` exists.
+- [x] 3.3 GREEN: implement the shared form and initial catalog surface in `src/features/clients/ClientForm.tsx` and `src/features/clients/ClientsPage.tsx`; make the focused tests pass, keeping rates tabular and all fields explicitly labeled.
+- [x] 3.4 RED: extend `ClientsPage.test.tsx` with edit, archive confirmation/cancel, load failure, save failure, preserved input, and retry scenarios; run it and confirm the new scenarios fail for the intended missing behavior.
+- [x] 3.5 GREEN: implement the edit, archive, recovery, and retry states in the existing client form/page modules; rerun `pnpm test -- src/features/clients/ClientsPage.test.tsx` and refactor only while green.
 
 ## 4. Application Integration
 
-- [ ] 4.1 RED: extend `src/app/AppShell.test.tsx` to require a persistent Clients destination, active-route state, keyboard access, and an injected in-memory catalog; confirm failure with `pnpm test -- src/app/AppShell.test.tsx`.
-- [ ] 4.2 GREEN: add Clients to `src/app/navigation.tsx`, route it through the existing shell in `src/app/AppShell.tsx`, and supply the production catalog from `src/App.tsx`; rerun `pnpm test -- src/app/AppShell.test.tsx` and the complete `pnpm test` suite.
-- [ ] 4.3 Audit `src/features/clients/*.tsx`, `src/app/AppShell.tsx`, and the added UI primitives against the installed `frontend-design`, `web-design-guidelines`, and applicable Tauri/Vite portions of `vercel-react-best-practices`; resolve relevant findings and rerun focused tests after every behavioral correction.
+- [x] 4.1 RED: extend `src/app/AppShell.test.tsx` to require a persistent Clients destination, active-route state, keyboard access, and an injected in-memory catalog; confirm failure with `pnpm test -- src/app/AppShell.test.tsx`.
+- [x] 4.2 GREEN: add Clients to `src/app/navigation.tsx`, route it through the existing shell in `src/app/AppShell.tsx`, and supply the production catalog from `src/App.tsx`; rerun `pnpm test -- src/app/AppShell.test.tsx` and the complete `pnpm test` suite.
+- [x] 4.3 Audit `src/features/clients/*.tsx`, `src/app/AppShell.tsx`, and the added UI primitives against the installed `frontend-design`, `web-design-guidelines`, and applicable Tauri/Vite portions of `vercel-react-best-practices`; resolve relevant findings and rerun focused tests after every behavioral correction.
 
 ## 5. Verification and Handoff
 
