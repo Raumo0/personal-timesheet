@@ -1,8 +1,8 @@
 ## 1. Local Database Foundation
 
-- [ ] 1.1 Add `@tauri-apps/plugin-sql` and `zod` to `package.json`/`pnpm-lock.yaml`, add SQLite-enabled `tauri-plugin-sql` to `src-tauri/Cargo.toml`/`Cargo.lock`, and grant the required SQL permissions in `src-tauri/capabilities/default.json`; verify with `pnpm build` and `cargo check --manifest-path src-tauri/Cargo.toml`.
-- [ ] 1.2 RED: add focused migration-definition tests in `src-tauri/src/database.rs`; run `cargo test --manifest-path src-tauri/Cargo.toml` and confirm they fail because the client schema is absent.
-- [ ] 1.3 GREEN: define the version-1 client migration in `src-tauri/src/database.rs`, register it from `src-tauri/src/lib.rs`, and add the development database artifacts to `.gitignore`; rerun `cargo test --manifest-path src-tauri/Cargo.toml` and `cargo check --manifest-path src-tauri/Cargo.toml`.
+- [x] 1.1 Add `@tauri-apps/plugin-sql` and `zod` to `package.json`/`pnpm-lock.yaml`, add SQLite-enabled `tauri-plugin-sql` to `src-tauri/Cargo.toml`/`Cargo.lock`, and grant the required SQL permissions in `src-tauri/capabilities/default.json`; verify with `pnpm build` and `cargo check --manifest-path src-tauri/Cargo.toml`.
+- [x] 1.2 RED: add focused migration-definition tests in `src-tauri/src/database.rs`; run `cargo test --manifest-path src-tauri/Cargo.toml` and confirm they fail because the client schema is absent.
+- [x] 1.3 GREEN: define the version-1 client migration in `src-tauri/src/database.rs`, register it from `src-tauri/src/lib.rs`, and add the development database artifacts to `.gitignore`; rerun `cargo test --manifest-path src-tauri/Cargo.toml` and `cargo check --manifest-path src-tauri/Cargo.toml`.
 
 ## 2. Client Domain and Persistence Seam
 

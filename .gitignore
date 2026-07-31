@@ -11,6 +11,9 @@ node_modules
 dist
 dist-ssr
 src-tauri/target
+personal-timesheet.db
+personal-timesheet.db-shm
+personal-timesheet.db-wal
 *.local
 .env
 .env.*
