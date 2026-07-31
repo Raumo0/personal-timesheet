@@ -14,9 +14,9 @@
 
 ## 3. Frontend Backup Service
 
-- [ ] 3.1 RED: create `src/features/backup/tauri-backup-service.test.ts` for save/open dialog cancellation, native command arguments, backup success, staged preview, SQL checkpoint/close ordering, commit, and translated failures; run the focused test and confirm it fails before the adapter exists.
-- [ ] 3.2 GREEN: add the small `BackupService` interface and domain result/error types in `src/features/backup/backup-service.ts`, plus the production dialog/native adapter in `src/features/backup/tauri-backup-service.ts`; extend `src/features/clients/database.ts` only with the database checkpoint/close seam required by confirmed restore; rerun the focused adapter tests.
-- [ ] 3.3 Add `src/features/backup/in-memory-backup-service.ts` for Settings tests with controllable success, cancellation, preview, and failure behavior; keep it conformant with the production interface through shared contract tests.
+- [x] 3.1 RED: create `src/features/backup/tauri-backup-service.test.ts` for save/open dialog cancellation, native command arguments, backup success, staged preview, SQL checkpoint/close ordering, commit, and translated failures; run the focused test and confirm it fails before the adapter exists.
+- [x] 3.2 GREEN: add the small `BackupService` interface and domain result/error types in `src/features/backup/backup-service.ts`, plus the production dialog/native adapter in `src/features/backup/tauri-backup-service.ts`; extend `src/features/clients/database.ts` only with the database checkpoint/close seam required by confirmed restore; rerun the focused adapter tests.
+- [x] 3.3 Add `src/features/backup/in-memory-backup-service.ts` for Settings tests with controllable success, cancellation, preview, and failure behavior; keep it conformant with the production interface through shared contract tests.
 
 ## 4. Settings Data Workspace
 

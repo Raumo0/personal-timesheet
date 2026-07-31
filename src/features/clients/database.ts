@@ -7,9 +7,18 @@ export interface SqlDatabase {
   select(query: string, bindValues?: unknown[]): Promise<unknown[]>;
 }
 
-let databasePromise: Promise<SqlDatabase> | undefined;
+let databasePromise: Promise<Database> | undefined;
 
 export function getClientDatabase(): Promise<SqlDatabase> {
   databasePromise ??= Database.load(DATABASE_URL);
   return databasePromise;
+}
+
+export async function checkpointAndCloseClientDatabase(): Promise<void> {
+  databasePromise ??= Database.load(DATABASE_URL);
+  const database = await databasePromise;
+  await database.execute("PRAGMA wal_checkpoint(TRUNCATE)");
+  const closed = await database.close();
+  if (!closed) throw new Error("SQLite connection could not be closed");
+  databasePromise = undefined;
 }
