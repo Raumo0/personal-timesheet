@@ -6,12 +6,12 @@
 
 ## 2. Client Domain and Persistence Seam
 
-- [ ] 2.1 RED: create `src/features/clients/client.test.ts` covering normalized names, ISO currency codes, nullable rates, explicit zero, negative-rate rejection, and zero-/two-/three-decimal currency parsing; run `pnpm test -- src/features/clients/client.test.ts` and confirm the expected failures.
-- [ ] 2.2 GREEN: implement the Client types, Zod command/row schemas, name normalization, and exact rate parsing/formatting in `src/features/clients/client.ts`; rerun `pnpm test -- src/features/clients/client.test.ts` and refactor only while green.
-- [ ] 2.3 RED: create shared catalog contract tests in `src/features/clients/client-catalog.contract.ts` and `src/features/clients/in-memory-client-catalog.test.ts` for create, edit, active-name uniqueness, list filters, archive, and persistence errors; confirm failure with `pnpm test -- src/features/clients/in-memory-client-catalog.test.ts`.
-- [ ] 2.4 GREEN: add the small `ClientCatalog` interface and test adapter in `src/features/clients/client-catalog.ts` and `src/features/clients/in-memory-client-catalog.ts`; rerun the focused contract tests and refactor only while green.
-- [ ] 2.5 RED: add `src/features/clients/sqlite-client-catalog.test.ts` with a controlled SQL database adapter to verify bound statements, row decoding, active/archived queries, uniqueness translation, and error translation; confirm expected failures with `pnpm test -- src/features/clients/sqlite-client-catalog.test.ts`.
-- [ ] 2.6 GREEN: implement the lazy database connection and SQLite catalog adapter in `src/features/clients/database.ts` and `src/features/clients/sqlite-client-catalog.ts`; rerun all `src/features/clients/*.test.ts` tests.
+- [x] 2.1 RED: create `src/features/clients/client.test.ts` covering normalized names, ISO currency codes, nullable rates, explicit zero, negative-rate rejection, and zero-/two-/three-decimal currency parsing; run `pnpm test -- src/features/clients/client.test.ts` and confirm the expected failures.
+- [x] 2.2 GREEN: implement the Client types, Zod command/row schemas, name normalization, and exact rate parsing/formatting in `src/features/clients/client.ts`; rerun `pnpm test -- src/features/clients/client.test.ts` and refactor only while green.
+- [x] 2.3 RED: create shared catalog contract tests in `src/features/clients/client-catalog.contract.ts` and `src/features/clients/in-memory-client-catalog.test.ts` for create, edit, active-name uniqueness, list filters, archive, and persistence errors; confirm failure with `pnpm test -- src/features/clients/in-memory-client-catalog.test.ts`.
+- [x] 2.4 GREEN: add the small `ClientCatalog` interface and test adapter in `src/features/clients/client-catalog.ts` and `src/features/clients/in-memory-client-catalog.ts`; rerun the focused contract tests and refactor only while green.
+- [x] 2.5 RED: add `src/features/clients/sqlite-client-catalog.test.ts` with a controlled SQL database adapter to verify bound statements, row decoding, active/archived queries, uniqueness translation, and error translation; confirm expected failures with `pnpm test -- src/features/clients/sqlite-client-catalog.test.ts`.
+- [x] 2.6 GREEN: implement the lazy database connection and SQLite catalog adapter in `src/features/clients/database.ts` and `src/features/clients/sqlite-client-catalog.ts`; rerun all `src/features/clients/*.test.ts` tests.
 
 ## 3. Client Workspace
 
