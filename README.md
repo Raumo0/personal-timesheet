@@ -62,9 +62,10 @@ pnpm spec list
 pnpm spec:doctor
 ```
 
-In Codex, start uncertain work with `$openspec-explore` or create a reviewable
-feature change with `$openspec-propose`. Implement with
-`$openspec-apply-change`, then synchronize and archive the completed change.
+In Codex, start every feature or material behavior change with
+`$openspec-explore`. After agreeing on the direction, create a reviewable
+change with `$openspec-propose`. Implement with `$openspec-apply-change`, then
+synchronize and archive the completed change.
 
 Small documentation and configuration changes do not require an OpenSpec
 change. Behavioral fixes still use test-driven development.

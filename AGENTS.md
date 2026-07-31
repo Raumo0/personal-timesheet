@@ -75,6 +75,13 @@ Use OpenSpec for new features and material behavior changes:
 explore → propose → apply → sync/archive
 ```
 
+- Start every new feature or material behavior change with
+  `$openspec-explore`. Do not jump directly to `$openspec-propose`, even when
+  the initial request appears clear.
+- Use Explore to confirm user intent, observable behavior, scope, non-goals,
+  dependencies, and unresolved decisions.
+- Run `$openspec-propose` only after the user explicitly agrees with the
+  explored direction.
 - Keep one OpenSpec change focused on one reviewable vertical slice.
 - Treat `openspec/specs/` as the source of truth for implemented product
   behavior.

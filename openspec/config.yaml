@@ -7,10 +7,13 @@ context: |
   The current stack is Tauri 2, Rust, React 19, TypeScript, Vite, and pnpm.
   Deliver small, runnable, independently reviewable vertical slices.
   Use test-driven development for business rules and behavior.
+  Begin every new feature or material behavior change with OpenSpec Explore.
+  Create a proposal only after the user approves the explored direction.
   AGENTS.md is the authoritative repository-wide working agreement.
 
 rules:
   proposal:
+    - Confirm that Explore concluded with explicit user agreement before creating the proposal.
     - Keep one proposal focused on one independently reviewable vertical slice.
     - State concrete non-goals whenever adjacent product scope could be inferred.
   specs:
