@@ -2,6 +2,7 @@ use std::{
     error::Error,
     fmt, fs,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use sqlx::{sqlite::SqliteConnectOptions, Connection, SqliteConnection};
@@ -35,12 +36,14 @@ impl BackupPaths {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BackupReceipt {
     pub path: PathBuf,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BackupPreview {
     pub filename: String,
     pub data_version: i64,
@@ -77,6 +80,12 @@ pub enum BackupError {
     UnsupportedNewerVersion {
         backup_version: i64,
         supported_version: i64,
+    },
+    CommitFailed {
+        reason: String,
+    },
+    RollbackFailed {
+        reason: String,
     },
 }
 
@@ -129,19 +138,51 @@ impl fmt::Display for BackupError {
                 formatter,
                 "backup data version {backup_version} is newer than supported version {supported_version}"
             ),
+            Self::CommitFailed { reason } => {
+                write!(formatter, "restore could not be committed: {reason}")
+            }
+            Self::RollbackFailed { reason } => write!(
+                formatter,
+                "restore failed and the recovery database could not be reinstated: {reason}"
+            ),
         }
     }
 }
 
 impl Error for BackupError {}
 
+trait FileOperations: Send + Sync {
+    fn rename(&self, from: &Path, to: &Path) -> std::io::Result<()>;
+    fn remove_file(&self, path: &Path) -> std::io::Result<()>;
+}
+
+struct StandardFileOperations;
+
+impl FileOperations for StandardFileOperations {
+    fn rename(&self, from: &Path, to: &Path) -> std::io::Result<()> {
+        fs::rename(from, to)
+    }
+
+    fn remove_file(&self, path: &Path) -> std::io::Result<()> {
+        fs::remove_file(path)
+    }
+}
+
 pub struct BackupService {
     paths: BackupPaths,
+    file_operations: Arc<dyn FileOperations>,
 }
 
 impl BackupService {
     pub fn new(paths: BackupPaths) -> Self {
-        Self { paths }
+        Self::with_file_operations(paths, Arc::new(StandardFileOperations))
+    }
+
+    fn with_file_operations(paths: BackupPaths, file_operations: Arc<dyn FileOperations>) -> Self {
+        Self {
+            paths,
+            file_operations,
+        }
     }
 
     pub async fn create_backup(&self, destination: &Path) -> Result<BackupReceipt, BackupError> {
@@ -236,6 +277,51 @@ impl BackupService {
                 Err(error)
             }
         }
+    }
+
+    pub fn commit_restore(&self) -> Result<(), BackupError> {
+        if !self.paths.live_database.is_file() {
+            return Err(BackupError::CommitFailed {
+                reason: "current database is missing".to_owned(),
+            });
+        }
+        if !self.paths.pending_restore.is_file() {
+            return Err(BackupError::CommitFailed {
+                reason: "validated pending restore is missing".to_owned(),
+            });
+        }
+
+        self.remove_if_exists(&self.paths.recovery_database)
+            .map_err(|error| BackupError::CommitFailed {
+                reason: format!("previous recovery copy could not be removed: {error}"),
+            })?;
+        self.file_operations
+            .rename(&self.paths.live_database, &self.paths.recovery_database)
+            .map_err(|error| BackupError::CommitFailed {
+                reason: format!("current database could not be preserved: {error}"),
+            })?;
+
+        if let Err(error) = self
+            .file_operations
+            .rename(&self.paths.pending_restore, &self.paths.live_database)
+        {
+            return self.rollback_before_replacement(format!(
+                "validated backup could not replace the current database: {error}"
+            ));
+        }
+
+        if let Err(error) = self.remove_live_sidecars() {
+            return self.rollback_after_replacement(format!(
+                "obsolete SQLite sidecars could not be removed: {error}"
+            ));
+        }
+
+        Ok(())
+    }
+
+    pub fn cancel_staged_restore(&self) -> Result<(), BackupError> {
+        remove_staged_file(&partial_path(&self.paths.pending_restore))?;
+        remove_staged_file(&self.paths.pending_restore)
     }
 
     async fn create_snapshot(&self, partial: &Path) -> Result<(), BackupError> {
@@ -340,6 +426,43 @@ impl BackupService {
             client_count,
         })
     }
+
+    fn remove_if_exists(&self, path: &Path) -> std::io::Result<()> {
+        if path.exists() {
+            self.file_operations.remove_file(path)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn remove_live_sidecars(&self) -> std::io::Result<()> {
+        self.remove_if_exists(&sqlite_sidecar(&self.paths.live_database, "-wal"))?;
+        self.remove_if_exists(&sqlite_sidecar(&self.paths.live_database, "-shm"))
+    }
+
+    fn rollback_before_replacement(&self, reason: String) -> Result<(), BackupError> {
+        self.file_operations
+            .rename(&self.paths.recovery_database, &self.paths.live_database)
+            .map_err(|rollback_error| BackupError::RollbackFailed {
+                reason: format!("{reason}; rollback failed: {rollback_error}"),
+            })?;
+
+        Err(BackupError::CommitFailed { reason })
+    }
+
+    fn rollback_after_replacement(&self, reason: String) -> Result<(), BackupError> {
+        self.file_operations
+            .rename(&self.paths.live_database, &self.paths.pending_restore)
+            .and_then(|_| {
+                self.file_operations
+                    .rename(&self.paths.recovery_database, &self.paths.live_database)
+            })
+            .map_err(|rollback_error| BackupError::RollbackFailed {
+                reason: format!("{reason}; rollback failed: {rollback_error}"),
+            })?;
+
+        Err(BackupError::CommitFailed { reason })
+    }
 }
 
 fn normalized_destination(path: &Path) -> Result<PathBuf, BackupError> {
@@ -374,6 +497,12 @@ fn partial_path(destination: &Path) -> PathBuf {
     destination.with_file_name(filename)
 }
 
+fn sqlite_sidecar(database: &Path, suffix: &str) -> PathBuf {
+    let mut path = database.as_os_str().to_os_string();
+    path.push(suffix);
+    PathBuf::from(path)
+}
+
 fn remove_stale_partial(partial: &Path) -> Result<(), BackupError> {
     if !partial.exists() {
         return Ok(());
@@ -398,12 +527,12 @@ fn remove_staged_file(path: &Path) -> Result<(), BackupError> {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::Path};
+    use std::{fs, io, path::Path, sync::Arc};
 
     use sqlx::{sqlite::SqliteConnectOptions, Connection, SqliteConnection};
     use tempfile::TempDir;
 
-    use super::{BackupError, BackupPaths, BackupPreview, BackupService};
+    use super::{BackupError, BackupPaths, BackupPreview, BackupService, FileOperations};
 
     async fn connect(path: &Path, create: bool) -> SqliteConnection {
         let options = SqliteConnectOptions::new()
@@ -718,5 +847,151 @@ mod tests {
             ));
             assert!(!paths.pending_restore.exists());
         });
+    }
+
+    #[test]
+    fn commit_replaces_the_live_database_and_preserves_a_recovery_copy() {
+        tauri::async_runtime::block_on(async {
+            let directory = TempDir::new().expect("temporary directory should be created");
+            let paths = BackupPaths::from_config_dir(directory.path());
+            let mut live = connect(&paths.live_database, true).await;
+            sqlx::query("CREATE TABLE marker (value TEXT NOT NULL)")
+                .execute(&mut live)
+                .await
+                .expect("live marker table should be created");
+            sqlx::query("INSERT INTO marker (value) VALUES ('current workspace')")
+                .execute(&mut live)
+                .await
+                .expect("live marker should be inserted");
+            live.close().await.expect("live database should close");
+            create_valid_backup(&paths.pending_restore, 1, &["Restored client"]).await;
+
+            BackupService::new(paths.clone())
+                .commit_restore()
+                .expect("restore should commit");
+
+            let mut restored = connect(&paths.live_database, false).await;
+            let restored_name: String = sqlx::query_scalar("SELECT name FROM clients")
+                .fetch_one(&mut restored)
+                .await
+                .expect("restored client should be readable");
+            let mut recovery = connect(&paths.recovery_database, false).await;
+            let recovery_marker: String = sqlx::query_scalar("SELECT value FROM marker")
+                .fetch_one(&mut recovery)
+                .await
+                .expect("recovery should contain previous workspace");
+
+            assert_eq!(restored_name, "Restored client");
+            assert_eq!(recovery_marker, "current workspace");
+            assert!(!paths.pending_restore.exists());
+        });
+    }
+
+    #[test]
+    fn commit_removes_obsolete_live_database_sidecars() {
+        let directory = TempDir::new().expect("temporary directory should be created");
+        let paths = BackupPaths::from_config_dir(directory.path());
+        fs::write(&paths.live_database, b"current").expect("live database should be written");
+        fs::write(&paths.pending_restore, b"restored").expect("pending database should be written");
+        let wal = directory.path().join("personal-timesheet.db-wal");
+        let shared_memory = directory.path().join("personal-timesheet.db-shm");
+        fs::write(&wal, b"obsolete wal").expect("WAL sidecar should be written");
+        fs::write(&shared_memory, b"obsolete shm").expect("SHM sidecar should be written");
+
+        BackupService::new(paths.clone())
+            .commit_restore()
+            .expect("restore should commit");
+
+        assert_eq!(
+            fs::read(&paths.live_database).expect("restored database should be readable"),
+            b"restored"
+        );
+        assert!(!wal.exists());
+        assert!(!shared_memory.exists());
+    }
+
+    struct FailPendingReplacement {
+        pending: std::path::PathBuf,
+        live: std::path::PathBuf,
+    }
+
+    impl FileOperations for FailPendingReplacement {
+        fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
+            if from == self.pending && to == self.live {
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "simulated replacement failure",
+                ));
+            }
+
+            fs::rename(from, to)
+        }
+
+        fn remove_file(&self, path: &Path) -> io::Result<()> {
+            fs::remove_file(path)
+        }
+    }
+
+    #[test]
+    fn commit_rolls_back_to_current_data_when_replacement_fails() {
+        let directory = TempDir::new().expect("temporary directory should be created");
+        let paths = BackupPaths::from_config_dir(directory.path());
+        fs::write(&paths.live_database, b"current workspace")
+            .expect("live database should be written");
+        fs::write(&paths.pending_restore, b"staged restore")
+            .expect("pending database should be written");
+        let operations = Arc::new(FailPendingReplacement {
+            pending: paths.pending_restore.clone(),
+            live: paths.live_database.clone(),
+        });
+
+        let result =
+            BackupService::with_file_operations(paths.clone(), operations).commit_restore();
+
+        assert!(matches!(result, Err(BackupError::CommitFailed { .. })));
+        assert_eq!(
+            fs::read(&paths.live_database).expect("current database should be restored"),
+            b"current workspace"
+        );
+        assert_eq!(
+            fs::read(&paths.pending_restore).expect("staged restore should remain retryable"),
+            b"staged restore"
+        );
+        assert!(!paths.recovery_database.exists());
+    }
+
+    #[test]
+    fn command_preview_serializes_with_the_frontend_contract() {
+        let preview = BackupPreview {
+            filename: "july.ptimesheet-backup".to_owned(),
+            data_version: 1,
+            client_count: 7,
+        };
+
+        let value = serde_json::to_value(preview).expect("preview should serialize");
+
+        assert_eq!(
+            value,
+            serde_json::json!({
+                "filename": "july.ptimesheet-backup",
+                "dataVersion": 1,
+                "clientCount": 7
+            })
+        );
+    }
+
+    #[test]
+    fn command_cancel_removes_only_the_pending_restore() {
+        let directory = TempDir::new().expect("temporary directory should be created");
+        let paths = BackupPaths::from_config_dir(directory.path());
+        fs::write(&paths.live_database, b"current").expect("live database should be written");
+        fs::write(&paths.pending_restore, b"pending").expect("pending restore should be written");
+
+        BackupService::new(paths.clone())
+            .cancel_staged_restore()
+            .expect("cancel should succeed");
+
+        assert!(paths.live_database.exists());
+        assert!(!paths.pending_restore.exists());
     }
 }

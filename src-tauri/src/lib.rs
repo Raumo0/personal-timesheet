@@ -2,9 +2,62 @@
 pub mod backup;
 mod database;
 
+use std::path::Path;
+
+use tauri::{AppHandle, Manager};
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+fn backup_service(app: &AppHandle) -> Result<backup::BackupService, String> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| format!("application data directory is unavailable: {error}"))?;
+
+    Ok(backup::BackupService::new(
+        backup::BackupPaths::from_config_dir(&config_dir),
+    ))
+}
+
+#[tauri::command]
+async fn create_data_backup(
+    app: AppHandle,
+    destination: String,
+) -> Result<backup::BackupReceipt, String> {
+    backup_service(&app)?
+        .create_backup(Path::new(&destination))
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn stage_restore_backup(
+    app: AppHandle,
+    source: String,
+) -> Result<backup::BackupPreview, String> {
+    backup_service(&app)?
+        .stage_and_validate(Path::new(&source))
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn cancel_staged_restore(app: AppHandle) -> Result<(), String> {
+    backup_service(&app)?
+        .cancel_staged_restore()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn commit_staged_restore(app: AppHandle) -> Result<(), String> {
+    backup_service(&app)?
+        .commit_restore()
+        .map_err(|error| error.to_string())?;
+    app.request_restart();
+    Ok(())
 }
 
 fn application_context() -> tauri::Context<tauri::Wry> {
@@ -21,7 +74,13 @@ pub fn run() {
         )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            create_data_backup,
+            stage_restore_backup,
+            cancel_staged_restore,
+            commit_staged_restore
+        ])
         .on_page_load(|webview, payload| {
             let window = webview.window();
             let visibility_result = match payload.event() {

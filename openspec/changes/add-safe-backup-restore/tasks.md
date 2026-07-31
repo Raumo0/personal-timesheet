@@ -8,9 +8,9 @@
 
 - [x] 2.1 RED: extend `src-tauri/src/backup.rs` tests for staging an intact backup, SQLite integrity failure, missing Personal Timesheet schema, and a migration version newer than the application supports; confirm failure with `cargo test --manifest-path src-tauri/Cargo.toml backup::tests::validate`.
 - [x] 2.2 GREEN: implement app-owned staging, read-only `PRAGMA quick_check`, schema/migration compatibility validation, safe preview metadata, and staged-file cleanup; rerun the focused validation tests.
-- [ ] 2.3 RED: add restore-commit tests for recovery-copy creation, complete replacement, obsolete WAL/SHM cleanup, simulated replacement failure, and rollback to the current database; confirm failure with `cargo test --manifest-path src-tauri/Cargo.toml backup::tests::commit`.
-- [ ] 2.4 GREEN: implement the rollback-safe staged swap and recovery copy in the existing native backup service; rerun all `backup::tests` and refactor only while green.
-- [ ] 2.5 Add narrow Tauri commands for create, stage/validate, cancel staged restore, and commit/relaunch in `src-tauri/src/lib.rs`; cover command input/output serialization where practical and verify with `cargo test --manifest-path src-tauri/Cargo.toml`.
+- [x] 2.3 RED: add restore-commit tests for recovery-copy creation, complete replacement, obsolete WAL/SHM cleanup, simulated replacement failure, and rollback to the current database; confirm failure with `cargo test --manifest-path src-tauri/Cargo.toml backup::tests::commit`.
+- [x] 2.4 GREEN: implement the rollback-safe staged swap and recovery copy in the existing native backup service; rerun all `backup::tests` and refactor only while green.
+- [x] 2.5 Add narrow Tauri commands for create, stage/validate, cancel staged restore, and commit/relaunch in `src-tauri/src/lib.rs`; cover command input/output serialization where practical and verify with `cargo test --manifest-path src-tauri/Cargo.toml`.
 
 ## 3. Frontend Backup Service
 
