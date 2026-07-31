@@ -20,19 +20,19 @@
 
 ## 4. Settings Data Workspace
 
-- [ ] 4.1 RED: create `src/features/backup/SettingsDataPage.test.tsx` for the unencrypted-file notice, backup success/cancellation/failure, restore selection, compatible preview, incompatible-file failure, replacement warning, and confirmation cancellation; run the focused test and confirm the intended failures.
-- [ ] 4.2 GREEN: implement the Settings Data panel in `src/features/backup/SettingsDataPage.tsx` using existing Button and AlertDialog primitives, with explicit pending/success/error states and no invented dashboard decoration; make the focused tests pass.
-- [ ] 4.3 RED: extend the page test with restore commit failure, preserved current-data messaging, retry, and disabled duplicate actions while an operation is pending; confirm the new scenarios fail for the intended missing behavior.
-- [ ] 4.4 GREEN: implement recovery and retry states in the existing Settings Data page and service seam; rerun the focused page tests and refactor only while green.
+- [x] 4.1 RED: create `src/features/backup/SettingsDataPage.test.tsx` for the unencrypted-file notice, backup success/cancellation/failure, restore selection, compatible preview, incompatible-file failure, replacement warning, and confirmation cancellation; run the focused test and confirm the intended failures.
+- [x] 4.2 GREEN: implement the Settings Data panel in `src/features/backup/SettingsDataPage.tsx` using existing Button and AlertDialog primitives, with explicit pending/success/error states and no invented dashboard decoration; make the focused tests pass.
+- [x] 4.3 RED: extend the page test with restore commit failure, preserved current-data messaging, retry, and disabled duplicate actions while an operation is pending; confirm the new scenarios fail for the intended missing behavior.
+- [x] 4.4 GREEN: implement recovery and retry states in the existing Settings Data page and service seam; rerun the focused page tests and refactor only while green.
 
 ## 5. Application Integration and Audit
 
-- [ ] 5.1 RED: extend `src/app/AppShell.test.tsx` to require the real Settings Data workspace and an injected in-memory backup service while preserving navigation and keyboard behavior; confirm failure with `pnpm test -- src/app/AppShell.test.tsx`.
-- [ ] 5.2 GREEN: route Settings through the existing shell, inject the production backup service from `src/App.tsx`, and keep other placeholder routes unchanged; rerun `pnpm test -- src/app/AppShell.test.tsx` and the complete `pnpm test` suite.
-- [ ] 5.3 Audit the new Settings and dialog flows against `frontend-design`, freshly fetched `web-design-guidelines`, and applicable Tauri/Vite portions of `vercel-react-best-practices`; resolve relevant accessibility, destructive-action, async-state, and bundle findings with focused tests after behavioral changes.
+- [x] 5.1 RED: extend `src/app/AppShell.test.tsx` to require the real Settings Data workspace and an injected in-memory backup service while preserving navigation and keyboard behavior; confirm failure with `pnpm test -- src/app/AppShell.test.tsx`.
+- [x] 5.2 GREEN: route Settings through the existing shell, inject the production backup service from `src/App.tsx`, and keep other placeholder routes unchanged; rerun `pnpm test -- src/app/AppShell.test.tsx` and the complete `pnpm test` suite.
+- [x] 5.3 Audit the new Settings and dialog flows against `frontend-design`, freshly fetched `web-design-guidelines`, and applicable Tauri/Vite portions of `vercel-react-best-practices`; resolve relevant accessibility, destructive-action, async-state, and bundle findings with focused tests after behavioral changes.
 
 ## 6. Verification and Handoff
 
-- [ ] 6.1 Run `pnpm test`, `pnpm build`, `cargo test --manifest-path src-tauri/Cargo.toml`, `cargo check --manifest-path src-tauri/Cargo.toml`, and `openspec validate add-safe-backup-restore --strict`; resolve every relevant failure.
+- [x] 6.1 Run `pnpm test`, `pnpm build`, `cargo test --manifest-path src-tauri/Cargo.toml`, `cargo check --manifest-path src-tauri/Cargo.toml`, and `openspec validate add-safe-backup-restore --strict`; resolve every relevant failure.
 - [ ] 6.2 Run the native application with `pnpm tauri dev`; verify backup cancellation, successful backup, damaged/newer-file rejection, restore confirmation cancellation, successful round trip with client data, restart, and rollback behavior; inspect light and dark themes, then stop all development processes.
 - [ ] 6.3 Update `.workspace/WORKPLAN.md`, inspect `git diff --check` and `git status --short`, and commit the independently understandable native engine, frontend service, Settings UI, and final verification slices with Conventional Commits.

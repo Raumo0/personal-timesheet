@@ -122,6 +122,12 @@ describe("TauriBackupService", () => {
       code: "invalid-backup",
       message: "This file is damaged or is not a Personal Timesheet backup.",
     },
+    {
+      nativeMessage: "destination unavailable: disk full",
+      code: "persistence",
+      message:
+        "Personal Timesheet could not complete the data operation. Try again or choose another file location.",
+    },
   ] as const)("translates $code failures for the UI", async (scenario) => {
     const dependencies = createDependencies({
       openDialog: vi.fn().mockResolvedValue("/Documents/selected.backup"),

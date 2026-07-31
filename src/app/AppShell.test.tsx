@@ -8,6 +8,7 @@ import { AppShell } from "@/app/AppShell";
 import { ThemeProvider } from "@/app/theme/ThemeProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { InMemoryClientCatalog } from "@/features/clients/in-memory-client-catalog";
+import { InMemoryBackupService } from "@/features/backup/in-memory-backup-service";
 
 function renderApp() {
   vi.stubGlobal(
@@ -82,7 +83,10 @@ describe("application shell", () => {
       <ThemeProvider>
         <TooltipProvider>
           <MemoryRouter>
-            <AppShell clientCatalog={new InMemoryClientCatalog()} />
+            <AppShell
+              backupService={new InMemoryBackupService()}
+              clientCatalog={new InMemoryClientCatalog()}
+            />
           </MemoryRouter>
         </TooltipProvider>
       </ThemeProvider>,
@@ -156,6 +160,41 @@ describe("application shell", () => {
       "data-density",
       "comfortable",
     );
+  });
+
+  test("opens the real Settings data workspace with an injected service", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    render(
+      <ThemeProvider>
+        <TooltipProvider>
+          <MemoryRouter initialEntries={["/settings"]}>
+            <AppShell
+              backupService={new InMemoryBackupService()}
+              clientCatalog={new InMemoryClientCatalog()}
+            />
+          </MemoryRouter>
+        </TooltipProvider>
+      </ThemeProvider>,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Settings" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Back up data" }),
+    ).toBeEnabled();
+
+    await user.click(screen.getByRole("link", { name: "Reports" }));
+    expect(screen.getByRole("heading", { name: "Reports" })).toBeInTheDocument();
   });
 
   test("keeps page chrome aligned across workspace densities", async () => {

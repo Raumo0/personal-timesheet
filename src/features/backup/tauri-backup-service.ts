@@ -134,7 +134,7 @@ function translateBackupError(error: unknown): BackupServiceError {
 
   return new BackupServiceError(
     "persistence",
-    "Personal Timesheet could not complete the data operation. Your current data was not changed.",
+    "Personal Timesheet could not complete the data operation. Try again or choose another file location.",
     error,
   );
 }

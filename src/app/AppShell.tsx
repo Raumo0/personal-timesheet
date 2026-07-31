@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { ClientCatalog } from "@/features/clients/client-catalog";
+import type { BackupService } from "@/features/backup/backup-service";
 
 import {
   navigationDestinations,
@@ -31,6 +32,12 @@ import { ProductPage } from "./pages/ProductPage";
 const ClientsPage = lazy(() =>
   import("@/features/clients/ClientsPage").then((module) => ({
     default: module.ClientsPage,
+  })),
+);
+
+const SettingsDataPage = lazy(() =>
+  import("@/features/backup/SettingsDataPage").then((module) => ({
+    default: module.SettingsDataPage,
   })),
 );
 
@@ -72,7 +79,13 @@ function SidebarDestination({
   );
 }
 
-export function AppShell({ clientCatalog }: { clientCatalog: ClientCatalog }) {
+export function AppShell({
+  backupService,
+  clientCatalog,
+}: {
+  backupService: BackupService;
+  clientCatalog: ClientCatalog;
+}) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const location = useLocation();
   const activeDestination =
@@ -187,6 +200,16 @@ export function AppShell({ clientCatalog }: { clientCatalog: ClientCatalog }) {
                         }
                       >
                         <ClientsPage catalog={clientCatalog} />
+                      </Suspense>
+                    ) : destination.path === "/settings" ? (
+                      <Suspense
+                        fallback={
+                          <p className="text-sm text-muted-foreground" role="status">
+                            Opening settings…
+                          </p>
+                        }
+                      >
+                        <SettingsDataPage service={backupService} />
                       </Suspense>
                     ) : (
                       <ProductPage destination={destination} />

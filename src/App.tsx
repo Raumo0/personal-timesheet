@@ -4,15 +4,20 @@ import { AppShell } from "@/app/AppShell";
 import { ThemeProvider } from "@/app/theme/ThemeProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SqliteClientCatalog } from "@/features/clients/sqlite-client-catalog";
+import { TauriBackupService } from "@/features/backup/tauri-backup-service";
 
 const clientCatalog = new SqliteClientCatalog();
+const backupService = new TauriBackupService();
 
 function App() {
   return (
     <ThemeProvider>
       <TooltipProvider delay={350}>
         <HashRouter>
-          <AppShell clientCatalog={clientCatalog} />
+          <AppShell
+            backupService={backupService}
+            clientCatalog={clientCatalog}
+          />
         </HashRouter>
       </TooltipProvider>
     </ThemeProvider>
