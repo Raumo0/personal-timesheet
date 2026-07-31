@@ -34,5 +34,5 @@
 ## 6. Verification and Handoff
 
 - [x] 6.1 Run `pnpm test`, `pnpm build`, `cargo test --manifest-path src-tauri/Cargo.toml`, `cargo check --manifest-path src-tauri/Cargo.toml`, and `openspec validate add-safe-backup-restore --strict`; resolve every relevant failure.
-- [ ] 6.2 Run the native application with `pnpm tauri dev`; verify backup cancellation, successful backup, damaged/newer-file rejection, restore confirmation cancellation, successful round trip with client data, restart, and rollback behavior; inspect light and dark themes, then stop all development processes.
-- [ ] 6.3 Update `.workspace/WORKPLAN.md`, inspect `git diff --check` and `git status --short`, and commit the independently understandable native engine, frontend service, Settings UI, and final verification slices with Conventional Commits.
+- [x] 6.2 Run the native application with `pnpm tauri dev`; verify backup cancellation, successful backup, damaged/newer-file rejection, restore confirmation cancellation, successful round trip with client data, restart, and rollback behavior; inspect light and dark themes, then stop all development processes.
+- [x] 6.3 Update `.workspace/WORKPLAN.md`, inspect `git diff --check` and `git status --short`, and commit the independently understandable native engine, frontend service, Settings UI, and final verification slices with Conventional Commits.
