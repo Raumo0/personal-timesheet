@@ -101,6 +101,14 @@ Project skills live in `.agents/skills/`. Their sources and hashes are recorded
 in `skills-lock.json`.
 
 - Read a relevant skill before following its workflow.
+- Use `frontend-design` for new or substantially reshaped product surfaces.
+  Extend the established application identity instead of inventing a separate
+  visual direction for each screen.
+- Apply `vercel-react-best-practices` selectively to this Tauri and Vite
+  client. Ignore Next.js, React Server Components, SSR, and server-route
+  guidance unless the project adopts those technologies.
+- Do not add a dependency or performance abstraction solely because a skill
+  mentions it. Prefer the current stack and evidence from the actual code.
 - Use `npx skills list` to inspect installed skills.
 - Use `npx skills update <skill-name>` only when a skill update is requested.
 - Use `npx skills experimental_install` to restore them from the lockfile.
