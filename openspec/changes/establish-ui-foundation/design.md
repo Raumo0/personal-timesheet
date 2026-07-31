@@ -29,18 +29,19 @@ single-page desktop application with a minimum width of 960 pixels. See
 
 Use `tailwindcss` with `@tailwindcss/vite` and a single global stylesheet.
 Define semantic color, spacing, radius, and density tokens with CSS variables.
-Use a platform-native sans-serif font stack for a desktop-native feel without
-adding a font-loading dependency.
+Use the locally packaged Geist variable font supplied by the Nova preset for a
+crisp desktop feel without a runtime font request.
 
 Alternative considered: CSS Modules. They avoid utility classes but would
 require rebuilding the token and component conventions supplied by shadcn/ui.
 
 ### shadcn/ui with Base UI primitives
 
-Initialize shadcn/ui for an existing Vite project using Base UI, the `new-york`
-style, neutral foundations, and one restrained blue accent. Add only primitives
-required by the shell, such as Button, Tooltip, and Dropdown Menu. Generated
-components live under `src/components/ui/` and become project-owned code.
+Initialize shadcn/ui for an existing Vite project using Base UI and the current
+`Nova` preset, with neutral foundations and one restrained blue accent. Add
+only primitives required by the shell, such as Button, Tooltip, and Dropdown
+Menu. Generated components live under `src/components/ui/` and become
+project-owned code.
 
 Alternative considered: a packaged component system such as MUI or Mantine.
 Those systems accelerate broad component coverage but impose a larger runtime
