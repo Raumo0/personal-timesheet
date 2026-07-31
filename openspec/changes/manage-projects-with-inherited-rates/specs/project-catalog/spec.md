@@ -1,0 +1,134 @@
+## Purpose
+
+Defines how projects are maintained beneath clients and how their visible,
+effective billing rates inherit or override client defaults.
+
+## ADDED Requirements
+
+### Requirement: Client project workspace
+The application SHALL provide a project workspace for each client that displays
+active projects by default and archived projects separately. Every project
+SHALL belong to exactly one client and use that client's billing currency.
+
+#### Scenario: Open an empty project workspace
+- **WHEN** the user opens an active client that has no projects
+- **THEN** the application displays an empty project state with an action to create the first project
+
+#### Scenario: View active projects
+- **WHEN** the user opens a client with saved active projects
+- **THEN** the application displays each project's name, rate mode, effective hourly rate, and rate source
+
+#### Scenario: View archived projects
+- **WHEN** the user selects the archived project view
+- **THEN** the application displays that client's archived projects without mixing them into the active list
+
+#### Scenario: Inspect projects for an archived client
+- **WHEN** the user opens the project workspace for an archived client
+- **THEN** the application displays retained projects as read-only historical records and does not offer creation or editing
+
+### Requirement: Create a project
+The application SHALL allow the user to create an active project under an
+active client with a unique non-empty name and an explicit choice to inherit or
+override the client's default hourly rate. Project-name uniqueness SHALL ignore
+surrounding whitespace and letter case among active projects of the same client.
+
+#### Scenario: Create an inheriting project
+- **WHEN** the user enters a valid project name, selects inheritance, and saves
+- **THEN** the project appears under the client with its rate identified as inherited
+
+#### Scenario: Reuse a project name under another client
+- **WHEN** two active clients each have an active project with the same normalized name
+- **THEN** the application accepts both projects because uniqueness is scoped to their clients
+
+#### Scenario: Reject a duplicate active project name
+- **WHEN** the user saves a project name matching an active project of the same client after whitespace and case normalization
+- **THEN** the application does not save the project and identifies the conflicting name
+
+### Requirement: Explicit project rate mode
+The application SHALL present inheritance and override as explicit mutually
+exclusive project rate modes. In inherited mode the applicable client value
+SHALL be visible, read-only, and identified as coming from the client. In
+override mode the project value SHALL be editable in the client's currency.
+
+#### Scenario: Display an inherited client rate
+- **WHEN** a project's rate mode is inherited and its client defines a default hourly rate
+- **THEN** the project form displays the formatted client rate as read-only and identifies the client as its source
+
+#### Scenario: Display inheritance without a client rate
+- **WHEN** a project's rate mode is inherited and its client has no default hourly rate
+- **THEN** the project form states that no client rate is set without converting the project to override mode
+
+#### Scenario: Enter an override
+- **WHEN** the user selects override mode
+- **THEN** the project form enables an hourly-rate input in the client's billing currency
+
+#### Scenario: Preserve mode while editing
+- **WHEN** the user reopens a saved project for editing
+- **THEN** the form restores its saved inheritance or override selection rather than inferring the mode from equal numeric values
+
+### Requirement: Effective project rate
+The application SHALL resolve a project's effective hourly rate from its
+explicit override when present and otherwise from its client's default hourly
+rate. An unset client rate SHALL yield an unset effective project rate, while an
+explicit zero at either applicable level SHALL remain a valid zero rate.
+
+#### Scenario: Resolve a project override
+- **WHEN** a project defines an override
+- **THEN** its effective rate is the project override regardless of the client's current default
+
+#### Scenario: Resolve client inheritance
+- **WHEN** a project inherits and its client defines a default hourly rate
+- **THEN** its effective rate is the current client default and its source is identified as the client
+
+#### Scenario: Update an inherited effective rate
+- **WHEN** the client default hourly rate changes for an inheriting project
+- **THEN** the project displays the new client value without changing its inherited mode
+
+#### Scenario: Keep an override after a client change
+- **WHEN** the client default hourly rate changes for a project with an override
+- **THEN** the project retains its override and effective rate
+
+#### Scenario: Resolve no available rate
+- **WHEN** a project inherits and its client has no default hourly rate
+- **THEN** the project effective rate is identified as not set
+
+#### Scenario: Resolve an explicit zero override
+- **WHEN** a project overrides its rate with zero
+- **THEN** the effective rate is zero and is identified as a project override
+
+### Requirement: Edit and archive a project
+The application SHALL allow the user to edit or archive an active project under
+an active client without permanently deleting its record.
+
+#### Scenario: Save project changes
+- **WHEN** the user saves a valid name or rate-mode change
+- **THEN** the project workspace displays the updated project and effective rate
+
+#### Scenario: Reject an invalid override
+- **WHEN** the user attempts to save a negative, missing, or invalid-precision override
+- **THEN** the application preserves the entered values and identifies the invalid rate
+
+#### Scenario: Confirm project archival
+- **WHEN** the user confirms archiving an active project
+- **THEN** the project leaves the active list and appears in the archived project view
+
+#### Scenario: Cancel project archival
+- **WHEN** the user cancels the archival confirmation
+- **THEN** the project remains active and unchanged
+
+### Requirement: Durable local project data
+The application SHALL retain successfully saved projects and their explicit
+rate modes across application restarts and SHALL not transmit project data to an
+external service.
+
+#### Scenario: Reopen the application
+- **WHEN** the user closes and later reopens the application after saving project changes
+- **THEN** the application displays the same projects, rate modes, and overrides
+
+#### Scenario: Project data cannot be loaded
+- **WHEN** local project data cannot be initialized or read
+- **THEN** the project workspace displays a recoverable error state instead of an empty catalog
+
+#### Scenario: Project changes cannot be saved
+- **WHEN** a local persistence error prevents a create, edit, or archive operation
+- **THEN** the application preserves the user's current context and explains that the change was not saved

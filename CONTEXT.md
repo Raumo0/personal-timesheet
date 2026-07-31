@@ -24,3 +24,22 @@ _Avoid_: Default currency
 The client-level price for one hour of work, inherited by later work items
 unless they define an override.
 _Avoid_: Client rate, base rate
+
+**Project**:
+A named body of work performed for exactly one client and available for direct
+time entry or further division into tasks.
+
+**Inherited hourly rate**:
+An hourly rate obtained from the nearest ancestor that defines one rather than
+entered on the current project or task.
+_Avoid_: Copied rate, defaulted rate
+
+**Hourly rate override**:
+An explicit non-negative hourly rate defined on a project or task instead of
+its inherited rate; zero is a valid override.
+_Avoid_: Custom rate
+
+**Effective hourly rate**:
+The rate that applies after resolving overrides from task to project to client;
+it remains unset when no level defines one.
+_Avoid_: Final rate, resolved rate
