@@ -81,6 +81,26 @@ describe("application shell", () => {
     expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
   });
 
+  test("shows only the tooltip for the collapsed destination under the pointer", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole("link", { name: "Reports" }));
+    await user.click(screen.getByRole("link", { name: "Expenses" }));
+    await user.click(screen.getByRole("link", { name: "Settings" }));
+    await user.click(
+      screen.getByRole("button", { name: "Collapse sidebar" }),
+    );
+
+    expect(screen.queryByText("Reports")).not.toBeInTheDocument();
+    expect(screen.queryByText("Expenses")).not.toBeInTheDocument();
+
+    await user.hover(screen.getByRole("link", { name: "Reports" }));
+
+    expect(await screen.findByText("Reports")).toBeInTheDocument();
+    expect(screen.queryByText("Expenses")).not.toBeInTheDocument();
+  });
+
   test("uses compact density only for Timesheet", async () => {
     const user = userEvent.setup();
     renderApp();

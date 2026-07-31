@@ -8,6 +8,46 @@
       content="A private, local-first workspace for time and expense tracking."
     />
     <title>Personal Timesheet</title>
+    <style>
+      :root {
+        color-scheme: light;
+        background: #ffffff;
+      }
+
+      :root.dark {
+        color-scheme: dark;
+        background: #171717;
+      }
+    </style>
+    <script data-theme-bootstrap>
+      (() => {
+        const storageKey = "personal-timesheet.appearance";
+        let appearance = "system";
+
+        try {
+          const stored = localStorage.getItem(storageKey);
+          if (stored === "light" || stored === "dark" || stored === "system") {
+            appearance = stored;
+          }
+        } catch {
+          // Fall back to the operating-system appearance.
+        }
+
+        const systemDark =
+          typeof matchMedia === "function" &&
+          matchMedia("(prefers-color-scheme: dark)").matches;
+        const resolved =
+          appearance === "system"
+            ? systemDark
+              ? "dark"
+              : "light"
+            : appearance;
+
+        document.documentElement.classList.remove("light", "dark");
+        document.documentElement.classList.add(resolved);
+        document.documentElement.style.colorScheme = resolved;
+      })();
+    </script>
   </head>
 
   <body>

@@ -21,8 +21,49 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-import { navigationDestinations } from "./navigation";
+import {
+  navigationDestinations,
+  type NavigationDestination,
+} from "./navigation";
 import { ProductPage } from "./pages/ProductPage";
+
+function SidebarDestination({
+  destination,
+  isCollapsed,
+}: {
+  destination: NavigationDestination;
+  isCollapsed: boolean;
+}) {
+  const Icon = destination.icon;
+  const link = (
+    <NavLink
+      aria-label={destination.label}
+      className={({ isActive }) =>
+        cn(
+          "flex h-10 items-center rounded-lg text-sm font-medium transition-colors",
+          isCollapsed ? "justify-center px-0" : "gap-3 px-3",
+          isActive
+            ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+            : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        )
+      }
+      end={destination.path === "/"}
+      to={destination.path}
+    >
+      <Icon aria-hidden="true" className="size-[1.1rem]" />
+      {!isCollapsed && <span>{destination.label}</span>}
+    </NavLink>
+  );
+
+  if (!isCollapsed) return link;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger render={link} />
+      <TooltipContent side="right">{destination.label}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 export function AppShell() {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -63,42 +104,13 @@ export function AppShell() {
           aria-label="Primary navigation"
           className="flex flex-1 flex-col gap-1 p-3"
         >
-          {navigationDestinations.map((destination) => {
-            const Icon = destination.icon;
-
-            return (
-              <Tooltip key={destination.path}>
-                <TooltipTrigger
-                  render={
-                    <NavLink
-                      aria-label={destination.label}
-                      className={({ isActive }) =>
-                        cn(
-                          "flex h-10 items-center rounded-lg text-sm font-medium transition-colors",
-                          isCollapsed
-                            ? "justify-center px-0"
-                            : "gap-3 px-3",
-                          isActive
-                            ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-                            : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                        )
-                      }
-                      end={destination.path === "/"}
-                      to={destination.path}
-                    >
-                      <Icon aria-hidden="true" className="size-[1.1rem]" />
-                      {!isCollapsed && <span>{destination.label}</span>}
-                    </NavLink>
-                  }
-                />
-                {isCollapsed && (
-                  <TooltipContent side="right">
-                    {destination.label}
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            );
-          })}
+          {navigationDestinations.map((destination) => (
+            <SidebarDestination
+              key={destination.path}
+              destination={destination}
+              isCollapsed={isCollapsed}
+            />
+          ))}
         </nav>
 
         <div className="border-t p-3">

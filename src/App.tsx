@@ -7,7 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 function App() {
   return (
     <ThemeProvider>
-      <TooltipProvider>
+      <TooltipProvider delay={350}>
         <HashRouter>
           <AppShell />
         </HashRouter>
