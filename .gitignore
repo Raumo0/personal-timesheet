@@ -15,11 +15,18 @@ src-tauri/target
 .env
 .env.*
 !.env.example
+.superpowers/
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
+.fleet/
+.run/
+*.iml
+*.ipr
+*.iws
+out/
 .DS_Store
 *.suo
 *.ntvs*
