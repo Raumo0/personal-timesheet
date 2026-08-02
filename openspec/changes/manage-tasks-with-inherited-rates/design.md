@@ -88,16 +88,17 @@ it communicates hierarchy and provides the return action. An inline expandable
 task table was rejected because it would crowd project rate/actions and would
 not provide durable project context for later time-entry links.
 
-### Preserve descendants while making archived ancestors read-only
+### Retain descendants in this slice and defer catalog lifecycle
 
 Archiving a client, project, or task changes only that record's `archived_at`.
 Opening tasks beneath an archived client or project remains possible, but the
 task screen disables create/edit/archive actions. Active tasks are not silently
-archived when an ancestor is archived. Later time-entry selection must exclude
-records with any archived ancestor by joining the hierarchy.
+archived when an ancestor is archived within this change. The follow-up
+`manage-catalog-archive-lifecycle` change owns cascading archive, targeted
+restore, and the final active-hierarchy contract consumed by time entry.
 
-Cascading archival was rejected because it destroys the distinction between a
-task intentionally archived by the user and one merely hidden by an ancestor.
+Adding those rules here was rejected because it would broaden a focused task
+catalog slice across existing client and project lifecycle behavior.
 
 ### Rescale every explicit descendant override in one transaction
 
@@ -126,8 +127,9 @@ The generic complete-backup behavior already covers task rows, so no
   catalog lookup through both identifiers and show a bounded unavailable state.
 - **One task override cannot be represented in a lower-precision currency** →
   Validate every descendant before writing and reject the whole client update.
-- **Active tasks remain stored beneath archived ancestors** → Make historical
-  screens read-only and require future selectors to filter every ancestor.
+- **This slice temporarily retains active tasks beneath archived ancestors** →
+  Keep historical screens read-only and let the follow-up catalog-lifecycle
+  change replace the transitional archive behavior before time entry ships.
 - **A third catalog increases repeated persistence code** → Keep the focused
   interface now; extract only after a concrete shared deep interface appears.
 - **Task UI can drift from the established product identity** → Reuse the

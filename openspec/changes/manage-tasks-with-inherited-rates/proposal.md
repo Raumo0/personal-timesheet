@@ -19,8 +19,9 @@ existing rate model before weekly time entry depends on it.
   overrides atomically when that currency changes without losing precision.
 - Preserve task records and rate modes across application restarts and include
   the evolved schema in backup compatibility checks.
-- Keep tasks beneath archived clients or projects as read-only historical
-  records without cascading archival to their child records.
+- Keep tasks beneath archived clients or projects available as read-only
+  historical records in this slice; defer cascading archive and targeted
+  restore to the follow-up catalog-lifecycle change.
 - Defer time entry, nested tasks, manual task ordering, task descriptions,
   moving tasks between projects, and task-specific currencies.
 
