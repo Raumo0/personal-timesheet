@@ -29,11 +29,11 @@
   `src-tauri`.
 - [x] 3.2 GREEN/REFACTOR: add migration 2 to `src-tauri/src/database.rs` without
   editing migration 1; rerun `cargo test database` from `src-tauri`.
-- [ ] 3.3 RED: add project catalog contract and persistence failure cases in
+- [x] 3.3 RED: add project catalog contract and persistence failure cases in
   `src/features/projects/sqlite-project-catalog.test.ts`, including inherited
   `NULL`, explicit zero, client scoping, and archival; run
   `pnpm test -- src/features/projects/sqlite-project-catalog.test.ts`.
-- [ ] 3.4 GREEN/REFACTOR: implement
+- [x] 3.4 GREEN/REFACTOR: implement
   `src/features/projects/sqlite-project-catalog.ts` through the existing
   `src/features/clients/database.ts` connection seam; rerun the focused test.
 - [ ] 3.5 RED: add currency-change cases to

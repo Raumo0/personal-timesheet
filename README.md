@@ -6,8 +6,52 @@ tasks, then produce useful reports and invoice-ready exports.
 
 ## Status
 
-The repository currently contains a verified Tauri starter. Product features
-have not been implemented yet.
+The application is under active development. Client catalog and the project
+domain foundation are implemented; the project workspace is still in progress.
+
+## Quick start
+
+Requirements: Node.js, pnpm, Rust, and the platform prerequisites for Tauri 2.
+
+From the repository root:
+
+```bash
+pnpm install
+pnpm tauri dev
+```
+
+The second command starts Vite and opens the native Personal Timesheet window.
+Press `Ctrl+C` in the terminal to stop it.
+
+To run only the browser interface during frontend work:
+
+```bash
+pnpm dev
+```
+
+Then open <http://localhost:1420>.
+
+### RustRover
+
+Use the built-in terminal to run the native application:
+
+```bash
+pnpm tauri dev
+```
+
+For a reusable Run Configuration, choose **Run → Edit Configurations → + →
+NPM** and set:
+
+- **package.json:** the root `package.json`
+- **Command:** `run-script`
+- **Scripts:** `tauri`
+- **Arguments:** `dev`
+- **Package manager:** `Project` after selecting `pnpm` in **Settings →
+  Languages & Frameworks → JavaScript Runtime**
+
+The NPM configuration name is generic: it runs pnpm when pnpm is the project
+package manager. Tauri starts Vite automatically through its `beforeDevCommand`;
+do not add a separate Vite configuration.
 
 ## Planned Capabilities
 
@@ -50,6 +94,13 @@ Check the Rust application:
 
 ```bash
 cargo check --manifest-path src-tauri/Cargo.toml
+```
+
+Run tests:
+
+```bash
+pnpm test
+cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
 ## Specification Workflow
