@@ -46,12 +46,12 @@
 
 ## 4. Project Workspace UI
 
-- [ ] 4.1 RED: add failing form interaction tests in
+- [x] 4.1 RED: add failing form interaction tests in
   `src/features/projects/ProjectForm.test.tsx` for explicit “Inherit client
   rate” and “Override rate” choices, read-only inherited context, unset client
   rate, validation, and zero override; run
   `pnpm test -- src/features/projects/ProjectForm.test.tsx`.
-- [ ] 4.2 GREEN/REFACTOR: implement
+- [x] 4.2 GREEN/REFACTOR: implement
   `src/features/projects/ProjectForm.tsx` with existing dialog, input, label,
   selection, and rate-formatting components; rerun the focused test.
 - [ ] 4.3 RED: add failing workspace tests in
