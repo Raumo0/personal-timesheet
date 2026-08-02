@@ -413,6 +413,16 @@ impl BackupService {
             .await
             .map_err(|_| BackupError::MissingApplicationSchema)?;
 
+        if data_version >= 2 {
+            sqlx::query(
+                "SELECT id, client_id, name, normalized_name, hourly_rate_override_minor, \
+                 created_at, updated_at, archived_at FROM projects LIMIT 0",
+            )
+            .fetch_optional(&mut connection)
+            .await
+            .map_err(|_| BackupError::MissingApplicationSchema)?;
+        }
+
         connection
             .close()
             .await
@@ -622,6 +632,26 @@ mod tests {
         connection.close().await.expect("backup should close");
     }
 
+    async fn add_valid_projects_table(connection: &mut SqliteConnection) {
+        sqlx::query(
+            r#"
+            CREATE TABLE projects (
+                id TEXT PRIMARY KEY NOT NULL,
+                client_id TEXT NOT NULL REFERENCES clients(id),
+                name TEXT NOT NULL,
+                normalized_name TEXT NOT NULL,
+                hourly_rate_override_minor INTEGER,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                archived_at TEXT
+            )
+            "#,
+        )
+        .execute(&mut *connection)
+        .await
+        .expect("projects table should be created");
+    }
+
     #[test]
     fn create_produces_a_complete_consistent_snapshot() {
         tauri::async_runtime::block_on(async {
@@ -784,6 +814,45 @@ mod tests {
     }
 
     #[test]
+    fn validate_accepts_a_migration_two_backup_with_the_project_schema() {
+        tauri::async_runtime::block_on(async {
+            let directory = TempDir::new().expect("temporary directory should be created");
+            let paths = BackupPaths::from_config_dir(directory.path());
+            let selected = directory.path().join("projects.ptimesheet-backup");
+            create_valid_backup(&selected, 2, &["Acme"]).await;
+            let mut backup = connect(&selected, false).await;
+            add_valid_projects_table(&mut backup).await;
+            backup.close().await.expect("backup should close");
+
+            let preview = BackupService::new(paths.clone())
+                .stage_and_validate(&selected)
+                .await
+                .expect("migration two backup should be staged");
+
+            assert_eq!(preview.data_version, 2);
+            assert_eq!(preview.client_count, 1);
+            assert!(paths.pending_restore.exists());
+        });
+    }
+
+    #[test]
+    fn validate_rejects_a_migration_two_backup_without_the_project_schema() {
+        tauri::async_runtime::block_on(async {
+            let directory = TempDir::new().expect("temporary directory should be created");
+            let paths = BackupPaths::from_config_dir(directory.path());
+            let selected = directory.path().join("missing-projects.ptimesheet-backup");
+            create_valid_backup(&selected, 2, &["Acme"]).await;
+
+            let result = BackupService::new(paths.clone())
+                .stage_and_validate(&selected)
+                .await;
+
+            assert!(matches!(result, Err(BackupError::MissingApplicationSchema)));
+            assert!(!paths.pending_restore.exists());
+        });
+    }
+
+    #[test]
     fn validate_rejects_damaged_sqlite_and_removes_the_staged_file() {
         tauri::async_runtime::block_on(async {
             let directory = TempDir::new().expect("temporary directory should be created");
@@ -832,7 +901,7 @@ mod tests {
             let directory = TempDir::new().expect("temporary directory should be created");
             let paths = BackupPaths::from_config_dir(directory.path());
             let selected = directory.path().join("future.ptimesheet-backup");
-            create_valid_backup(&selected, 2, &["Future client"]).await;
+            create_valid_backup(&selected, 3, &["Future client"]).await;
 
             let result = BackupService::new(paths.clone())
                 .stage_and_validate(&selected)
@@ -841,8 +910,8 @@ mod tests {
             assert!(matches!(
                 result,
                 Err(BackupError::UnsupportedNewerVersion {
-                    backup_version: 2,
-                    supported_version: 1,
+                    backup_version: 3,
+                    supported_version: 2,
                 })
             ));
             assert!(!paths.pending_restore.exists());

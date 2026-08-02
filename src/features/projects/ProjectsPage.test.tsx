@@ -1,5 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 
 import { InMemoryProjectCatalog } from "./in-memory-project-catalog";
@@ -28,7 +28,8 @@ test("shows an active project's effective client rate", async () => {
   );
 
   expect(await screen.findByText("Website")).toBeInTheDocument();
-  expect(screen.getByText(/€125\.00.*client/i)).toBeInTheDocument();
+  expect(screen.getByText("€125.00")).toBeInTheDocument();
+  expect(screen.getByText("Client default")).toBeInTheDocument();
 });
 
 test("keeps archived projects out of the active workspace", async () => {
@@ -42,4 +43,66 @@ test("opens archived projects in a separate view", async () => {
   render(<ProjectsPage client={{ id: "client-1", name: "Acme", currencyCode: "EUR", hourlyRateMinor: null, createdAt: "2026-08-02T10:00:00.000Z", updatedAt: "2026-08-02T10:00:00.000Z", archivedAt: null }} catalog={new InMemoryProjectCatalog({ projects: [{ id: "project-1", clientId: "client-1", name: "Old site", hourlyRateOverrideMinor: null, createdAt: "2026-08-02T10:00:00.000Z", updatedAt: "2026-08-02T10:00:00.000Z", archivedAt: "2026-08-02T10:00:00.000Z" }] })} />);
   await user.click(screen.getByRole("button", { name: "Archived" }));
   expect(await screen.findByText("Old site")).toBeInTheDocument();
+});
+
+test("recovers from a project catalog read failure", async () => {
+  const list = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("database locked"))
+    .mockResolvedValueOnce([]);
+  const user = userEvent.setup();
+
+  render(
+    <ProjectsPage
+      client={{ id: "client-1", name: "Acme", currencyCode: "EUR", hourlyRateMinor: null, createdAt: "2026-08-02T10:00:00.000Z", updatedAt: "2026-08-02T10:00:00.000Z", archivedAt: null }}
+      catalog={{ list, create: async () => { throw new Error("not used"); }, update: async () => { throw new Error("not used"); }, archive: async () => undefined }}
+    />,
+  );
+
+  expect(await screen.findByText("Projects could not be loaded")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Retry" }));
+  expect(await screen.findByRole("heading", { name: "No projects yet" })).toBeInTheDocument();
+});
+
+test("opens an active project for editing", async () => {
+  const user = userEvent.setup();
+  render(
+    <ProjectsPage
+      client={{ id: "client-1", name: "Acme", currencyCode: "EUR", hourlyRateMinor: null, createdAt: "2026-08-02T10:00:00.000Z", updatedAt: "2026-08-02T10:00:00.000Z", archivedAt: null }}
+      catalog={new InMemoryProjectCatalog({ projects: [{ id: "project-1", clientId: "client-1", name: "Website", hourlyRateOverrideMinor: null, createdAt: "2026-08-02T10:00:00.000Z", updatedAt: "2026-08-02T10:00:00.000Z", archivedAt: null }] })}
+    />,
+  );
+
+  await user.click(await screen.findByRole("button", { name: "Edit Website" }));
+  expect(screen.getByRole("dialog", { name: "Edit project" })).toBeInTheDocument();
+  expect(screen.getByRole("textbox", { name: "Project name" })).toHaveValue("Website");
+});
+
+test("archives an active project after confirmation", async () => {
+  const user = userEvent.setup();
+  render(
+    <ProjectsPage
+      client={{ id: "client-1", name: "Acme", currencyCode: "EUR", hourlyRateMinor: null, createdAt: "2026-08-02T10:00:00.000Z", updatedAt: "2026-08-02T10:00:00.000Z", archivedAt: null }}
+      catalog={new InMemoryProjectCatalog({ projects: [{ id: "project-1", clientId: "client-1", name: "Website", hourlyRateOverrideMinor: null, createdAt: "2026-08-02T10:00:00.000Z", updatedAt: "2026-08-02T10:00:00.000Z", archivedAt: null }] })}
+    />,
+  );
+
+  await user.click(await screen.findByRole("button", { name: "Archive Website" }));
+  expect(screen.getByRole("alertdialog", { name: "Archive Website?" })).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Archive project" }));
+  expect(await screen.findByRole("heading", { name: "No projects yet" })).toBeInTheDocument();
+});
+
+test("keeps an archived client's project workspace read-only", async () => {
+  render(
+    <ProjectsPage
+      client={{ id: "client-1", name: "Acme", currencyCode: "EUR", hourlyRateMinor: null, createdAt: "2026-08-02T10:00:00.000Z", updatedAt: "2026-08-02T10:00:00.000Z", archivedAt: "2026-08-02T11:00:00.000Z" }}
+      catalog={new InMemoryProjectCatalog({ projects: [{ id: "project-1", clientId: "client-1", name: "Website", hourlyRateOverrideMinor: null, createdAt: "2026-08-02T10:00:00.000Z", updatedAt: "2026-08-02T10:00:00.000Z", archivedAt: null }] })}
+    />,
+  );
+
+  expect(await screen.findByText("Website")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Add project" })).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "Edit Website" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Archive Website" })).not.toBeInTheDocument();
 });

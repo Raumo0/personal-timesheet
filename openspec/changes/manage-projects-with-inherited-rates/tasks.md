@@ -54,31 +54,31 @@
 - [x] 4.2 GREEN/REFACTOR: implement
   `src/features/projects/ProjectForm.tsx` with existing dialog, input, label,
   selection, and rate-formatting components; rerun the focused test.
-- [ ] 4.3 RED: add failing workspace tests in
+- [x] 4.3 RED: add failing workspace tests in
   `src/features/projects/ProjectsPage.test.tsx` for active/archived lists,
   effective-rate sources, empty/error states, create/edit/archive flows, and an
   archived client's read-only state; run
   `pnpm test -- src/features/projects/ProjectsPage.test.tsx`.
-- [ ] 4.4 GREEN/REFACTOR: implement
+- [x] 4.4 GREEN/REFACTOR: implement
   `src/features/projects/ProjectsPage.tsx`, preserving the established Clients
   page spacing, table density, confirmations, and accessible error handling;
   rerun the focused test.
-- [ ] 4.5 RED: extend `src/features/clients/ClientsPage.test.tsx` and
+- [x] 4.5 RED: extend `src/features/clients/ClientsPage.test.tsx` and
   `src/app/AppShell.test.tsx` for project navigation and deep-link retention;
   run `pnpm test -- src/features/clients/ClientsPage.test.tsx src/app/AppShell.test.tsx`.
-- [ ] 4.6 GREEN/REFACTOR: update `src/features/clients/ClientsPage.tsx`,
+- [x] 4.6 GREEN/REFACTOR: update `src/features/clients/ClientsPage.tsx`,
   `src/app/AppShell.tsx`, and `src/App.tsx` to link and route
   `/clients/:clientId/projects` with injected project catalog seams; rerun the
   focused tests.
 
 ## 5. Backup Compatibility and Verification
 
-- [ ] 5.1 RED: extend `src-tauri/src/backup.rs` tests for valid migration-2
+- [x] 5.1 RED: extend `src-tauri/src/backup.rs` tests for valid migration-2
   project schemas, migration-1 backup compatibility, and malformed project
   schema rejection; run `cargo test backup` from `src-tauri`.
-- [ ] 5.2 GREEN/REFACTOR: update schema validation and preview handling in
+- [x] 5.2 GREEN/REFACTOR: update schema validation and preview handling in
   `src-tauri/src/backup.rs` without changing the backup/restore interaction;
   rerun `cargo test backup` from `src-tauri`.
-- [ ] 5.3 Run `pnpm test`, `pnpm build`, `cargo test` from `src-tauri`,
+- [x] 5.3 Run `pnpm test`, `pnpm build`, `cargo test` from `src-tauri`,
   `pnpm spec validate manage-projects-with-inherited-rates --strict`, and
   `git diff --check`; record any manual Tauri verification still required.

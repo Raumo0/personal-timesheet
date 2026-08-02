@@ -1,7 +1,27 @@
-import { useCallback, useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Archive, FolderKanban, Pencil, Plus, RotateCcw } from "lucide-react";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+
 import { formatRate, type Client } from "../clients/client";
 import { resolveProjectRate, type Project, type ProjectCommand } from "./project";
 import type { ProjectCatalog, ProjectList } from "./project-catalog";
@@ -13,27 +33,257 @@ interface ProjectsPageProps {
 }
 
 export function ProjectsPage({ client, catalog }: ProjectsPageProps) {
-  const [projects, setProjects] = useState<Project[]>([]);
   const [filter, setFilter] = useState<ProjectList>("active");
-  const [loading, setLoading] = useState(true);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [status, setStatus] = useState<"loading" | "loaded" | "error">("loading");
   const [formOpen, setFormOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project>();
+  const [archiveProject, setArchiveProject] = useState<Project>();
+  const [mutationError, setMutationError] = useState<string>();
+  const loadRequest = useRef(0);
+  const isReadOnly = client.archivedAt !== null;
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try { setProjects(await catalog.list(client.id, filter)); } finally { setLoading(false); }
+  const loadProjects = useCallback(async () => {
+    const request = ++loadRequest.current;
+    setStatus("loading");
+    try {
+      const nextProjects = await catalog.list(client.id, filter);
+      if (request !== loadRequest.current) return;
+      setProjects(nextProjects);
+      setStatus("loaded");
+    } catch {
+      if (request !== loadRequest.current) return;
+      setStatus("error");
+    }
   }, [catalog, client.id, filter]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void loadProjects();
+  }, [loadProjects]);
 
-  async function save(command: ProjectCommand) {
-    await catalog.create(client.id, command);
-    await load();
+  async function saveProject(command: ProjectCommand) {
+    if (editingProject) {
+      await catalog.update(client.id, editingProject.id, command);
+    } else {
+      await catalog.create(client.id, command);
+    }
+    await loadProjects();
   }
 
-  return <div className="flex min-h-full flex-col">
-    <header className="flex items-start justify-between gap-6"><div><h1 className="text-2xl font-semibold tracking-tight">Projects</h1><p className="mt-2 text-sm leading-6 text-muted-foreground">{client.name}</p></div><Button onClick={() => setFormOpen(true)} disabled={client.archivedAt !== null}><Plus aria-hidden="true" />Add project</Button></header>
-    <div className="mt-6 inline-flex rounded-lg bg-muted p-1"><button aria-pressed={filter === "active"} className="rounded-md px-3 py-1.5 text-sm" onClick={() => setFilter("active")} type="button">Active</button><button aria-pressed={filter === "archived"} className="rounded-md px-3 py-1.5 text-sm" onClick={() => setFilter("archived")} type="button">Archived</button></div>
-    {loading ? <div className="mt-6" role="status">Loading projects…</div> : projects.length === 0 ? <section className="mt-6 flex min-h-64 flex-col items-center justify-center rounded-xl border p-8 text-center"><h2 className="text-sm font-semibold">No projects yet</h2><p className="mt-1 text-xs text-muted-foreground">Add a project to assign work beneath {client.name}.</p>{filter === "active" && <Button className="mt-4" onClick={() => setFormOpen(true)} disabled={client.archivedAt !== null}>Add your first project</Button>}</section> : <ul className="mt-6 space-y-2">{projects.map((project) => { const rate = resolveProjectRate(project.hourlyRateOverrideMinor, client.hourlyRateMinor); return <li className="rounded-lg border px-4 py-3" key={project.id}><p className="font-medium">{project.name}</p><p className="text-sm text-muted-foreground">{rate.hourlyRateMinor === null ? "Rate not set" : `${formatRate(rate.hourlyRateMinor, client.currencyCode)} from ${rate.source}`}</p></li>; })}</ul>}
-    <ProjectForm client={client} open={formOpen} onOpenChange={setFormOpen} onSave={save} />
-  </div>;
+  async function confirmArchive() {
+    if (!archiveProject) return;
+    setMutationError(undefined);
+    try {
+      await catalog.archive(client.id, archiveProject.id);
+      setArchiveProject(undefined);
+      await loadProjects();
+    } catch (error) {
+      setMutationError(
+        error instanceof Error ? error.message : "The project was not archived",
+      );
+      setArchiveProject(undefined);
+    }
+  }
+
+  function openCreateForm() {
+    setEditingProject(undefined);
+    setFormOpen(true);
+  }
+
+  return (
+    <div className="flex min-h-full flex-col">
+      <header className="flex items-start justify-between gap-6">
+        <div className="max-w-3xl">
+          <h1 className="text-balance text-2xl font-semibold tracking-tight">Projects</h1>
+          <p className="mt-2 text-pretty text-sm leading-6 text-muted-foreground">
+            {isReadOnly
+              ? `${client.name} is archived. Its projects are retained as historical records.`
+              : `Manage projects and rate choices for ${client.name}.`}
+          </p>
+        </div>
+        <Button disabled={isReadOnly} onClick={openCreateForm}>
+          <Plus aria-hidden="true" />
+          Add project
+        </Button>
+      </header>
+
+      <section aria-label="Project catalog" className="mt-6 overflow-hidden rounded-xl border bg-card shadow-xs">
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <div aria-label="Project status filter" className="inline-flex rounded-lg bg-muted p-1">
+            {(["active", "archived"] as const).map((value) => (
+              <button
+                aria-pressed={filter === value}
+                className={cn(
+                  "rounded-md px-3 py-1.5 text-sm font-medium transition-colors motion-reduce:transition-none",
+                  filter === value
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+                key={value}
+                onClick={() => setFilter(value)}
+                type="button"
+              >
+                {value === "active" ? "Active" : "Archived"}
+              </button>
+            ))}
+          </div>
+          {status === "loaded" && projects.length > 0 && (
+            <p className="text-xs tabular-nums text-muted-foreground">
+              {projects.length} {projects.length === 1 ? "project" : "projects"}
+            </p>
+          )}
+        </div>
+
+        {mutationError && (
+          <div className="border-b bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
+            {mutationError}
+          </div>
+        )}
+
+        {status === "loading" && (
+          <div className="flex min-h-64 items-center justify-center text-sm text-muted-foreground" role="status">
+            Loading projects…
+          </div>
+        )}
+
+        {status === "error" && (
+          <div className="flex min-h-64 flex-col items-center justify-center p-8 text-center">
+            <p className="text-sm font-medium">Projects could not be loaded</p>
+            <p className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">
+              Your local data was not changed. Try reading it again.
+            </p>
+            <Button className="mt-4" onClick={() => void loadProjects()} variant="outline">
+              <RotateCcw aria-hidden="true" />
+              Retry
+            </Button>
+          </div>
+        )}
+
+        {status === "loaded" && projects.length === 0 && (
+          <div className="flex min-h-64 flex-col items-center justify-center p-8 text-center">
+            <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <FolderKanban aria-hidden="true" className="size-5" />
+            </div>
+            <h2 className="mt-4 text-sm font-semibold">
+              {filter === "active" ? "No projects yet" : "No archived projects"}
+            </h2>
+            <p className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">
+              {filter === "active"
+                ? "Add a project to assign work beneath this client."
+                : "Archived projects remain available here for historical records."}
+            </p>
+            {filter === "active" && !isReadOnly && (
+              <Button className="mt-4" onClick={openCreateForm} variant="outline">
+                Add your first project
+              </Button>
+            )}
+          </div>
+        )}
+
+        {status === "loaded" && projects.length > 0 && (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="h-11 px-4">Project</TableHead>
+                <TableHead className="h-11 w-36">Rate mode</TableHead>
+                <TableHead className="h-11 w-48">Rate source</TableHead>
+                <TableHead className="h-11 w-40 pr-4 text-right">Effective hourly rate</TableHead>
+                {!isReadOnly && filter === "active" && (
+                  <TableHead className="h-11 w-24 pr-4">
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
+                )}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {projects.map((project) => {
+                const rate = resolveProjectRate(
+                  project.hourlyRateOverrideMinor,
+                  client.hourlyRateMinor,
+                );
+                return (
+                  <TableRow key={project.id}>
+                    <TableCell className="max-w-96 px-4 py-3 font-medium">{project.name}</TableCell>
+                    <TableCell className="py-3 text-muted-foreground">
+                      {project.hourlyRateOverrideMinor === null ? "Inherited" : "Override"}
+                    </TableCell>
+                    <TableCell className="py-3 text-muted-foreground">
+                      {rate.source === "project"
+                        ? "Project override"
+                        : rate.source === "client"
+                          ? "Client default"
+                          : "No rate set"}
+                    </TableCell>
+                    <TableCell className="py-3 pr-4 text-right font-medium tabular-nums">
+                      {formatRate(rate.hourlyRateMinor, client.currencyCode) ?? (
+                        <span className="font-normal text-muted-foreground">Not set</span>
+                      )}
+                    </TableCell>
+                    {!isReadOnly && filter === "active" && (
+                      <TableCell className="py-3 pr-4">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            aria-label={`Edit ${project.name}`}
+                            onClick={() => {
+                              setEditingProject(project);
+                              setFormOpen(true);
+                            }}
+                            size="icon-sm"
+                            variant="ghost"
+                          >
+                            <Pencil aria-hidden="true" />
+                          </Button>
+                          <Button
+                            aria-label={`Archive ${project.name}`}
+                            onClick={() => setArchiveProject(project)}
+                            size="icon-sm"
+                            variant="ghost"
+                          >
+                            <Archive aria-hidden="true" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </section>
+
+      <ProjectForm
+        client={client}
+        onOpenChange={(open) => {
+          setFormOpen(open);
+          if (!open) setEditingProject(undefined);
+        }}
+        onSave={saveProject}
+        open={formOpen}
+        project={editingProject}
+      />
+
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open) setArchiveProject(undefined);
+        }}
+        open={Boolean(archiveProject)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive {archiveProject?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The project will leave the active list but remain available in archived records.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void confirmArchive()} variant="destructive">
+              Archive project
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
 }

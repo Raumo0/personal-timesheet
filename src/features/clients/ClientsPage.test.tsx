@@ -26,6 +26,15 @@ function client(overrides: Partial<Client> = {}): Client {
 afterEach(cleanup);
 
 describe("Clients page", () => {
+  test("links each client to its project workspace", async () => {
+    render(<ClientsPage catalog={new InMemoryClientCatalog({ clients: [client()] })} />);
+
+    expect(await screen.findByRole("link", { name: "Acme Studio" })).toHaveAttribute(
+      "href",
+      "#/clients/client-1/projects",
+    );
+  });
+
   test("shows a loading state while local data is being read", () => {
     const catalog: ClientCatalog = {
       list: () => new Promise(() => undefined),
