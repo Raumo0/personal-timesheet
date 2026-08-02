@@ -150,3 +150,5 @@ lock entry when they have no upstream package identity.
 - Review skill changes and bundled scripts before committing an update.
 
 `AGENTS.md` is the canonical repository-wide instruction file.
+
+@RTK.md
