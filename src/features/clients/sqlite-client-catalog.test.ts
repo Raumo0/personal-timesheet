@@ -94,4 +94,55 @@ describe("SQLite client catalog", () => {
       code: "persistence",
     });
   });
+
+  test("rescales project overrides exactly with a client currency change", async () => {
+    const database = createDatabase([
+      { ...row, currency_code: "JPY", hourly_rate_minor: 125 },
+    ]);
+    database.select
+      .mockResolvedValueOnce([row])
+      .mockResolvedValueOnce([{ id: "project-1", hourly_rate_override_minor: 12_500 }])
+      .mockResolvedValueOnce([{ ...row, currency_code: "JPY", hourly_rate_minor: 125 }]);
+    const catalog = new SqliteClientCatalog({
+      getDatabase: async () => database,
+      now: () => new Date(now),
+    });
+
+    await catalog.update("client-1", {
+      name: "Acme",
+      currencyCode: "JPY",
+      hourlyRateMinor: 125,
+    });
+
+    expect(database.execute).toHaveBeenNthCalledWith(1, "BEGIN");
+    expect(database.execute).toHaveBeenCalledWith(
+      expect.stringContaining("UPDATE projects"),
+      [125, "project-1"],
+    );
+    expect(database.execute).toHaveBeenLastCalledWith("COMMIT");
+  });
+
+  test("rejects a lossy currency change before updating the client", async () => {
+    const database = createDatabase();
+    database.select.mockImplementation((query: string) =>
+      Promise.resolve(
+        query.includes("FROM projects")
+          ? [{ id: "project-1", hourly_rate_override_minor: 12_550 }]
+          : [row],
+      ),
+    );
+    const catalog = new SqliteClientCatalog({ getDatabase: async () => database });
+
+    await expect(
+      catalog.update("client-1", {
+        name: "Acme",
+        currencyCode: "JPY",
+        hourlyRateMinor: 125,
+      }),
+    ).rejects.toMatchObject({ code: "invalid-data" });
+    expect(database.execute).not.toHaveBeenCalledWith(
+      expect.stringContaining("UPDATE clients"),
+      expect.anything(),
+    );
+  });
 });

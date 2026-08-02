@@ -36,11 +36,11 @@
 - [x] 3.4 GREEN/REFACTOR: implement
   `src/features/projects/sqlite-project-catalog.ts` through the existing
   `src/features/clients/database.ts` connection seam; rerun the focused test.
-- [ ] 3.5 RED: add currency-change cases to
+- [x] 3.5 RED: add currency-change cases to
   `src/features/clients/sqlite-client-catalog.test.ts` for exact transactional
   project rescaling and rejection without partial updates; run
   `pnpm test -- src/features/clients/sqlite-client-catalog.test.ts`.
-- [ ] 3.6 GREEN/REFACTOR: extend `src/features/clients/sqlite-client-catalog.ts`
+- [x] 3.6 GREEN/REFACTOR: extend `src/features/clients/sqlite-client-catalog.ts`
   and its catalog error mapping to rescale project overrides atomically when
   currency precision changes; rerun the focused test.
 
