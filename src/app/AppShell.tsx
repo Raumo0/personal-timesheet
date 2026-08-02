@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
   ChevronsLeft,
   ChevronsRight,
@@ -10,6 +10,7 @@ import {
   Route,
   Routes,
   useLocation,
+  useParams,
 } from "react-router";
 
 import { ThemeMenu } from "@/app/theme/ThemeMenu";
@@ -21,6 +22,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { ClientCatalog } from "@/features/clients/client-catalog";
+import type { ProjectCatalog } from "@/features/projects/project-catalog";
 import type { BackupService } from "@/features/backup/backup-service";
 
 import {
@@ -40,6 +42,18 @@ const SettingsDataPage = lazy(() =>
     default: module.SettingsDataPage,
   })),
 );
+const ProjectsPage = lazy(() => import("@/features/projects/ProjectsPage").then((module) => ({ default: module.ProjectsPage })));
+
+function ProjectWorkspaceRoute({ clientCatalog, projectCatalog }: { clientCatalog: ClientCatalog; projectCatalog: ProjectCatalog }) {
+  const { clientId } = useParams();
+  const [client, setClient] = useState<import("@/features/clients/client").Client>();
+  useEffect(() => { void (async () => {
+    const active = await clientCatalog.list("active");
+    setClient(active.find((candidate) => candidate.id === clientId) ?? (await clientCatalog.list("archived")).find((candidate) => candidate.id === clientId));
+  })(); }, [clientCatalog, clientId]);
+  if (!client) return <p role="status">Opening projects…</p>;
+  return <ProjectsPage client={client} catalog={projectCatalog} />;
+}
 
 function SidebarDestination({
   destination,
@@ -82,9 +96,11 @@ function SidebarDestination({
 export function AppShell({
   backupService,
   clientCatalog,
+  projectCatalog,
 }: {
   backupService: BackupService;
   clientCatalog: ClientCatalog;
+  projectCatalog: ProjectCatalog;
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const location = useLocation();
@@ -187,6 +203,7 @@ export function AppShell({
             )}
           >
             <Routes>
+              <Route path="/clients/:clientId/projects" element={<Suspense fallback={<p role="status">Opening projects…</p>}><ProjectWorkspaceRoute clientCatalog={clientCatalog} projectCatalog={projectCatalog} /></Suspense>} />
               {navigationDestinations.map((destination) => (
                 <Route
                   key={destination.path}

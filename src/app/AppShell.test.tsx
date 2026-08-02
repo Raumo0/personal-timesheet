@@ -8,6 +8,7 @@ import { AppShell } from "@/app/AppShell";
 import { ThemeProvider } from "@/app/theme/ThemeProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { InMemoryClientCatalog } from "@/features/clients/in-memory-client-catalog";
+import { InMemoryProjectCatalog } from "@/features/projects/in-memory-project-catalog";
 import { InMemoryBackupService } from "@/features/backup/in-memory-backup-service";
 
 function renderApp() {
@@ -86,6 +87,7 @@ describe("application shell", () => {
             <AppShell
               backupService={new InMemoryBackupService()}
               clientCatalog={new InMemoryClientCatalog()}
+              projectCatalog={new InMemoryProjectCatalog()}
             />
           </MemoryRouter>
         </TooltipProvider>
@@ -103,6 +105,16 @@ describe("application shell", () => {
     expect(
       await screen.findByRole("heading", { name: "No clients yet" }),
     ).toBeInTheDocument();
+  });
+
+  test("opens a client project workspace from its deep link", async () => {
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    render(
+      <ThemeProvider><TooltipProvider><MemoryRouter initialEntries={["/clients/client-1/projects"]}>
+        <AppShell backupService={new InMemoryBackupService()} clientCatalog={new InMemoryClientCatalog({ clients: [{ id: "client-1", name: "Acme", currencyCode: "EUR", hourlyRateMinor: 12_500, createdAt: "2026-08-02T10:00:00.000Z", updatedAt: "2026-08-02T10:00:00.000Z", archivedAt: null }] })} projectCatalog={new InMemoryProjectCatalog()} />
+      </MemoryRouter></TooltipProvider></ThemeProvider>,
+    );
+    expect(await screen.findByRole("heading", { name: "Projects" })).toBeInTheDocument();
   });
 
   test("keeps destinations accessible when the sidebar is collapsed", async () => {
@@ -180,6 +192,7 @@ describe("application shell", () => {
             <AppShell
               backupService={new InMemoryBackupService()}
               clientCatalog={new InMemoryClientCatalog()}
+              projectCatalog={new InMemoryProjectCatalog()}
             />
           </MemoryRouter>
         </TooltipProvider>

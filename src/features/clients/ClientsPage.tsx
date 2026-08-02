@@ -195,9 +195,9 @@ export function ClientsPage({ catalog }: { catalog: ClientCatalog }) {
                 return (
                   <TableRow key={client.id}>
                     <TableCell className="max-w-96 px-4 py-3 font-medium">
-                      <span className="block truncate" title={client.name}>
+                      <a className="block truncate hover:underline" href={`#/clients/${client.id}/projects`} title={client.name}>
                         {client.name}
-                      </span>
+                      </a>
                     </TableCell>
                     <TableCell className="py-3 text-muted-foreground">{client.currencyCode}</TableCell>
                     <TableCell className="py-3 pr-4 text-right font-medium tabular-nums">
