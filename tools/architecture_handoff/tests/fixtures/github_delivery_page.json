@@ -1,0 +1,30 @@
+{
+  "branches": [
+    {
+      "name": "feature/deterministic-lookup",
+      "protected": false,
+      "commit": {
+        "sha": "abc123"
+      }
+    }
+  ],
+  "pulls": [
+    {
+      "number": 31,
+      "title": "Add deterministic lookup",
+      "state": "open",
+      "updated_at": "2026-07-30T10:00:00Z",
+      "html_url": "https://github.com/owner/repository/pull/31"
+    }
+  ],
+  "releases": [
+    {
+      "id": 41,
+      "name": "Pilot v0.1",
+      "tag_name": "v0.1.0",
+      "draft": false,
+      "published_at": "2026-07-29T10:00:00Z",
+      "html_url": "https://github.com/owner/repository/releases/tag/v0.1.0"
+    }
+  ]
+}

@@ -67,13 +67,15 @@ cargo check --manifest-path src-tauri/Cargo.toml
 Run focused tests first when tests exist, then the relevant broader suite.
 Review `git status` and the final diff before reporting completion.
 
-## OpenSpec Workflow
+## OpenSpec OPSX Workflow
 
-Use OpenSpec for new features and material behavior changes:
+Use the current artifact-guided OPSX workflow for new features and material
+behavior changes. In Codex, invoke its actions through the generated
+`$openspec-*` skills.
 
-```text
-explore → propose → apply → sync/archive
-```
+Treat these as iterative actions, not locked phases. Revisit approved planning
+artifacts when implementation reveals a gap, then continue from the updated
+artifacts.
 
 - Start every new feature or material behavior change with
   `$openspec-explore`. Do not jump directly to `$openspec-propose`, even when
@@ -95,10 +97,33 @@ explore → propose → apply → sync/archive
 - Generated OpenSpec skills live in `.codex/skills/`. Regenerate them with
   `pnpm exec openspec update`; do not edit them manually.
 
+## Agent Governance
+
+- Selecting a task authorizes inspection, not implementation. Inspect its
+  sources, readiness, scope, and blockers before proposing the next action.
+- Do not stage or commit unless the user explicitly requests it or an approved
+  workflow authorizes it. Never push, merge, close an issue or pull request, or
+  remove a worktree without explicit authority.
+- Treat `.codex/agents/implementer.toml` and
+  `.codex/agents/reviewer.toml` as version-controlled authority boundaries. Do
+  not create, broaden, or replace a profile without showing the exact change
+  and obtaining approval.
+- Treat `docs/agentic-workflow/validation-contract.md` as the sole registry for
+  deterministic implementation gates. Run
+  `tools/agentic_workflow/validate.py` before independent review. Missing,
+  stale, failed, or skipped mandatory evidence cannot be waived.
+- Record exact validation commands, results, limitations, and review evidence.
+- Before an external write, show the exact target and preview, then obtain
+  explicit approval. Verify and report the resulting external state.
+- Use Working Agreement Notes only under
+  `processes/progressive-working-agreement-notes.md`. Notes preserve approved
+  discussion outcomes but do not authorize implementation or external writes.
+
 ## Project Skills
 
-Project skills live in `.agents/skills/`. Their sources and hashes are recorded
-in `skills-lock.json`.
+Project skills live in `.agents/skills/`. Upstream skills have their sources
+and hashes recorded in `skills-lock.json`. Custom project skills may omit a
+lock entry when they have no upstream package identity.
 
 - Read a relevant skill before following its workflow.
 - Use `frontend-design` for new or substantially reshaped product surfaces.

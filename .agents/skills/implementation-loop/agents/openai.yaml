@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implementation Loop"
+  short_description: "Execute approved OpenSpec tasks safely"
+  default_prompt: "Use $implementation-loop to execute the next authorized OpenSpec task."

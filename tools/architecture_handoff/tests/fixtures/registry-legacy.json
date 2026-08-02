@@ -1,0 +1,14 @@
+{
+  "targets": [
+    {
+      "key": "example-implementation",
+      "provider": "github",
+      "repository": "owner/repository",
+      "routing_status": "active",
+      "owns": [
+        "pilot implementation"
+      ],
+      "excludes": []
+    }
+  ]
+}

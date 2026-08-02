@@ -1,0 +1,47 @@
+{
+  "incomplete_results": false,
+  "items": [
+    {
+      "number": 21,
+      "title": "Implement deterministic address prediction",
+      "state": "open",
+      "updated_at": "2026-07-30T12:00:00Z",
+      "html_url": "https://github.com/owner/repository/issues/21",
+      "body": "<!-- architecture-handoff-protocol\nschema-version: 2\nlogical-target: example-implementation\ncorrelation-id: corr-12\ncapability: account-address-prediction\nexpected-outcome: Return one deterministic address\nrelation: {\"kind\":\"implementation\",\"revision\":\"abc123\",\"target\":\"ADR-0003\"}\n-->",
+      "labels": [
+        {"name": "work-route:architecture-slice-handoff"},
+        {"name": "status:ready"}
+      ]
+    },
+    {
+      "number": 22,
+      "title": "Legacy deterministic address task",
+      "state": "open",
+      "updated_at": "2026-07-30T11:00:00Z",
+      "html_url": "https://github.com/owner/repository/issues/22",
+      "body": "Legacy body without versioned protocol metadata.",
+      "labels": []
+    },
+    {
+      "number": 23,
+      "title": "Malformed protocol task",
+      "state": "open",
+      "updated_at": "2026-07-30T10:00:00Z",
+      "html_url": "https://github.com/owner/repository/issues/23",
+      "body": "<!-- architecture-handoff-protocol\nschema-version: 2\nlogical-target: example-implementation",
+      "labels": []
+    },
+    {
+      "number": 24,
+      "title": "Pull request returned by search",
+      "state": "open",
+      "updated_at": "2026-07-30T09:00:00Z",
+      "html_url": "https://github.com/owner/repository/pull/24",
+      "body": "<!-- architecture-handoff-protocol\nschema-version: 2\nlogical-target: example-implementation\n-->",
+      "labels": [],
+      "pull_request": {
+        "url": "https://api.github.com/repos/owner/repository/pulls/24"
+      }
+    }
+  ]
+}

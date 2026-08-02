@@ -1,0 +1,32 @@
+{
+  "targets": [
+    {
+      "key": "example-implementation",
+      "provider": "github",
+      "repository": "example-org/example-implementation",
+      "repository_url": "https://example.com/example-org/example-implementation",
+      "tracker_reference": "github:example-org/example-implementation",
+      "routing_status": "suspended",
+      "owns": [
+        "example implementation work"
+      ],
+      "excludes": [],
+      "source_references": [
+        "git:https://example.com/example-org/example-documentation:docs/architecture-handoff.md"
+      ],
+      "topology": "repository",
+      "adoption_reference": "github:example-org/example-implementation#EXAMPLE",
+      "adoption_state": "draft"
+    }
+  ],
+  "stores": [
+    {
+      "key": "example-documentation-intake",
+      "role": "documentation-intake",
+      "provider": "github",
+      "repository": "example-org/example-documentation",
+      "tracker_reference": "github:example-org/example-documentation",
+      "routing_status": "suspended"
+    }
+  ]
+}

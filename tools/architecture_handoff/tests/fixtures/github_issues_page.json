@@ -1,0 +1,60 @@
+[
+  {
+    "number": 11,
+    "title": "Implement deterministic address lookup",
+    "state": "open",
+    "updated_at": "2026-07-30T10:00:00Z",
+    "html_url": "https://github.com/owner/repository/issues/11",
+    "body": "This body must not reach compact task output.",
+    "labels": [
+      {"name": "work-route:architecture-slice-handoff"},
+      {"name": "status:ready"},
+      {"name": "priority:high"}
+    ]
+  },
+  {
+    "number": 12,
+    "title": "Restore accepted conformance",
+    "state": "open",
+    "updated_at": "2026-07-30T09:00:00Z",
+    "html_url": "https://github.com/owner/repository/issues/12",
+    "body": "correlation-id: corr-12",
+    "labels": [
+      {"name": "work-route:implementation-conformance-referral"},
+      {"name": "status:backlog"}
+    ]
+  },
+  {
+    "number": 13,
+    "title": "Test provider feasibility",
+    "state": "open",
+    "updated_at": "2026-07-30T08:00:00Z",
+    "html_url": "https://github.com/owner/repository/issues/13",
+    "body": "source-reference: ADR-0003",
+    "labels": [
+      {"name": "work-route:spike-evidence"},
+      {"name": "status:in-progress"}
+    ]
+  },
+  {
+    "number": 14,
+    "title": "Update local dependency",
+    "state": "open",
+    "updated_at": "2026-07-30T07:00:00Z",
+    "html_url": "https://github.com/owner/repository/issues/14",
+    "body": "Target-owned maintenance.",
+    "labels": [{"name": "maintenance"}]
+  },
+  {
+    "number": 15,
+    "title": "A pull request returned by the Issues API",
+    "state": "open",
+    "updated_at": "2026-07-30T06:00:00Z",
+    "html_url": "https://github.com/owner/repository/pull/15",
+    "body": "Not a task item.",
+    "labels": [],
+    "pull_request": {
+      "url": "https://api.github.com/repos/owner/repository/pulls/15"
+    }
+  }
+]

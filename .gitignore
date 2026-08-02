@@ -36,3 +36,11 @@ out/
 *.njsproj
 *.sln
 *.sw?
+
+__pycache__/
+*.py[cod]
+/.agentic-workflow/
+
+/working-notes/*
+!/working-notes/README.md
+!/working-notes/TEMPLATE.md

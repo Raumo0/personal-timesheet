@@ -1,0 +1,6 @@
+interface:
+  display_name: "Capturing Working Agreements"
+  short_description: "Preserve and reconcile approved points"
+  default_prompt: "Use $capturing-working-agreements to preserve approved discussion points or reconcile an active Working Agreement Note."
+policy:
+  allow_implicit_invocation: true

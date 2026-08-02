@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+# Generate a review package for the current worktree. Initial reviews may save
+# a receipt-bound snapshot; re-reviews compare that snapshot to the worktree so
+# they show only the fix delta, including uncommitted files.
+#
+# Usage: review-package PLAN_FILE BASE HEAD [OUTFILE] [--snapshot|--re-review RECEIPT]
+set -euo pipefail
+
+if [ $# -lt 3 ] || [ $# -gt 6 ]; then
+  echo "usage: review-package PLAN_FILE BASE HEAD [OUTFILE] [--snapshot|--re-review RECEIPT]" >&2
+  exit 2
+fi
+
+plan=$1
+base=$2
+head=$3
+shift 3
+[ -f "$plan" ] || { echo "no such plan file: $plan" >&2; exit 2; }
+git rev-parse --verify --quiet "$base" >/dev/null || { echo "bad BASE: $base" >&2; exit 2; }
+git rev-parse --verify --quiet "$head" >/dev/null || { echo "bad HEAD: $head" >&2; exit 2; }
+
+out=""
+mode=""
+receipt_file=""
+if [ $# -gt 0 ] && [ "${1#--}" = "$1" ]; then
+  out=$1
+  shift
+fi
+if [ $# -gt 0 ]; then
+  mode=$1
+  receipt_file=${2:-}
+  [ $# -eq 2 ] || { echo "snapshot mode requires exactly one receipt" >&2; exit 2; }
+fi
+if [ -z "$out" ]; then
+  dir=$("$(cd "$(dirname "$0")" && pwd)/sdd-workspace" "$plan")
+  out="$dir/review-$(git rev-parse --short "$base")..$(git rev-parse --short "$head").diff"
+else
+  dir=$("$(cd "$(dirname "$0")" && pwd)/sdd-workspace" "$plan")
+fi
+
+receipt_values() {
+  [ -f "$receipt_file" ] || { echo "no such receipt: $receipt_file" >&2; exit 2; }
+  python3 -c 'import json, re, sys
+try:
+    value = json.load(open(sys.argv[1], encoding="utf-8"))
+except (OSError, json.JSONDecodeError) as error:
+    raise SystemExit(f"invalid receipt: {error}")
+for key, pattern in (("dispatch_id", r"[0-9a-f]{32}"), ("diff_identity", r"[0-9a-f]{64}")):
+    item = value.get(key)
+    if not isinstance(item, str) or re.fullmatch(pattern, item) is None:
+        raise SystemExit(f"invalid receipt {key}")
+    print(item)' "$receipt_file"
+}
+
+snapshot_paths() {
+  { git diff --name-only "$head"; git ls-files --others --exclude-standard; } | sort -u
+}
+
+currently_ignored_untracked_path() {
+  git ls-files --error-unmatch -- "$1" >/dev/null 2>&1 && return 1
+  git check-ignore --quiet -- "$1"
+}
+
+reject_untracked_symlinks() {
+  while IFS= read -r path; do
+    [ -L "$path" ] || continue
+    echo "untracked symbolic link is not reviewable: $path" >&2
+    exit 2
+  done < <(git ls-files --others --exclude-standard)
+}
+
+serialize_symlink() {
+  printf 'symbolic link -> %s\n' "$(readlink -- "$1")" > "$2"
+}
+
+snapshot_dir=""
+snapshot_manifest=""
+if [ -n "$mode" ]; then
+  case "$mode" in
+    --snapshot|--re-review) ;;
+    *) echo "unknown review-package mode: $mode" >&2; exit 2 ;;
+  esac
+  receipt_output=$(receipt_values)
+  dispatch_id=$(printf '%s\n' "$receipt_output" | sed -n '1p')
+  diff_identity=$(printf '%s\n' "$receipt_output" | sed -n '2p')
+  snapshot_dir="$dir/review-snapshots/$dispatch_id"
+  snapshot_manifest="$snapshot_dir/manifest"
+fi
+
+capture_snapshot() {
+  reject_untracked_symlinks
+  [ ! -e "$snapshot_dir" ] || { echo "snapshot already exists for receipt: $dispatch_id" >&2; exit 2; }
+  mkdir -p "$snapshot_dir/files"
+  receipt_hash=$(shasum -a 256 "$receipt_file" | awk '{print $1}')
+  {
+    printf 'dispatch_id\t%s\n' "$dispatch_id"
+    printf 'diff_identity\t%s\n' "$diff_identity"
+    printf 'receipt_sha256\t%s\n' "$receipt_hash"
+    printf 'head\t%s\n' "$(git rev-parse "$head")"
+  } > "$snapshot_manifest"
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    case "$path" in /*|../*|*/../*|.) echo "unsafe reviewable path: $path" >&2; exit 2 ;; esac
+    if [ -e "$path" ]; then
+      mkdir -p -- "$snapshot_dir/files/$(dirname -- "$path")"
+      if [ -L "$path" ]; then
+        serialize_symlink "$path" "$snapshot_dir/files/$path"
+      else
+        cp -- "$path" "$snapshot_dir/files/$path"
+      fi
+      printf 'path\t%s\tpresent\n' "$path" >> "$snapshot_manifest"
+    else
+      printf 'path\t%s\tabsent\n' "$path" >> "$snapshot_manifest"
+    fi
+  done < <(snapshot_paths)
+}
+
+verify_snapshot() {
+  [ -f "$snapshot_manifest" ] || { echo "missing receipt-bound snapshot: $dispatch_id" >&2; exit 2; }
+  receipt_hash=$(shasum -a 256 "$receipt_file" | awk '{print $1}')
+  expected=$(printf 'dispatch_id\t%s\ndiff_identity\t%s\nreceipt_sha256\t%s\n' "$dispatch_id" "$diff_identity" "$receipt_hash")
+  actual=$(head -n 3 "$snapshot_manifest")
+  [ "$actual" = "$expected" ] || { echo "snapshot receipt or diff identity mismatch" >&2; exit 2; }
+}
+
+write_initial_package() {
+  reject_untracked_symlinks
+  {
+    echo "# Review package: ${base}..${head}"
+    echo
+    echo "## Commits"
+    git log --oneline "${base}..${head}"
+    echo
+    echo "## Files changed"
+    git diff --stat "${base}..${head}"
+    echo
+    echo "## Diff"
+    git diff -U10 "${base}..${head}"
+    echo
+    echo "## Staged changes"
+    git diff --cached -U10 "$head"
+    echo
+    echo "## Unstaged changes"
+    git diff -U10
+    echo
+    echo "## Untracked files"
+    git ls-files --others --exclude-standard
+    while IFS= read -r path; do
+      [ -n "$path" ] || continue
+      echo
+      echo "### $path"
+      git diff --no-index -- /dev/null "$path" || true
+    done < <(git ls-files --others --exclude-standard)
+  } > "$out"
+}
+
+write_rereview_package() {
+  reject_untracked_symlinks
+  temporary=$(mktemp -d)
+  trap 'rm -rf "$temporary"' EXIT
+  {
+    echo "# Scoped re-review package: receipt ${dispatch_id}"
+    echo
+    echo "## Prior review identity"
+    echo "$diff_identity"
+    echo
+    echo "## Fix delta since receipt-bound snapshot"
+    { awk -F '\t' '$1 == "path" { print $2 }' "$snapshot_manifest"; snapshot_paths; } | sort -u | while IFS= read -r path; do
+      [ -n "$path" ] || continue
+      currently_ignored_untracked_path "$path" && continue
+      initial_state=$(awk -F '\t' -v path="$path" '$1 == "path" && $2 == path { print $3 }' "$snapshot_manifest")
+      if [ "$initial_state" = "present" ]; then
+        before="$snapshot_dir/files/$path"
+      elif [ "$initial_state" = "absent" ]; then
+        before=/dev/null
+      elif git cat-file -e "$head:$path" 2>/dev/null; then
+        before="$temporary/$path"
+        mkdir -p -- "$(dirname -- "$before")"
+        git show "$head:$path" > "$before"
+      else
+        before=/dev/null
+      fi
+      if [ -L "$path" ]; then
+        after="$temporary/current-$path"
+        mkdir -p -- "$(dirname -- "$after")"
+        serialize_symlink "$path" "$after"
+      elif [ -e "$path" ]; then
+        after="$path"
+      else
+        after=/dev/null
+      fi
+      if ! cmp -s -- "$before" "$after" 2>/dev/null; then
+        echo
+        echo "### $path"
+        git diff --no-index -U10 -- "$before" "$after" || true
+      fi
+    done
+  } > "$out"
+}
+
+case "$mode" in
+  --snapshot) capture_snapshot; write_initial_package ;;
+  --re-review) verify_snapshot; write_rereview_package ;;
+  "") write_initial_package ;;
+esac
+
+commits=$(git rev-list --count "${base}..${head}")
+echo "wrote ${out}: ${commits} commit(s), $(wc -c < "$out" | tr -d ' ') bytes"

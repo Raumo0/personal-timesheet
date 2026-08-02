@@ -1,0 +1,9 @@
+[agents.implementer]
+description = "Implements one authorized OpenSpec task in its assigned worktree"
+config_file = "agents/implementer.toml"
+nickname_candidates = ["Task Implementer"]
+
+[agents.reviewer]
+description = "Independently reviews one authorized implementation without modifying it"
+config_file = "agents/reviewer.toml"
+nickname_candidates = ["Independent Reviewer"]

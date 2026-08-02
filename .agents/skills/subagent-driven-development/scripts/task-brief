@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Extract one task's full text from an implementation plan into a file the
+# implementer reads in one call, so the task text never has to be pasted
+# through the controller's context.
+#
+# Usage: task-brief PLAN_FILE TASK_ID [OUTFILE]
+# Default OUTFILE: <repo-root>/.superpowers/sdd/<plan-basename>/task-<N>-brief.md
+# (per plan and per worktree; concurrent runs of the SAME plan in the same
+# working tree share it).
+set -euo pipefail
+
+if [ $# -lt 2 ] || [ $# -gt 3 ]; then
+  echo "usage: task-brief PLAN_FILE TASK_NUMBER [OUTFILE]" >&2
+  exit 2
+fi
+
+plan=$1
+task_id=$2
+[ -f "$plan" ] || { echo "no such plan file: $plan" >&2; exit 2; }
+
+if [ $# -eq 3 ]; then
+  out=$3
+else
+  dir=$("$(cd "$(dirname "$0")" && pwd)/sdd-workspace" "$plan")
+  safe_id=${task_id//./-}
+  out="$dir/task-${safe_id}-brief.md"
+fi
+
+awk -v wanted="$task_id" '
+  /^- \[[ xX]\] / {
+    item = $0
+    sub(/^- \[[ xX]\] /, "", item)
+    split(item, fields, /[[:space:]]+/)
+    if (active && fields[1] != wanted) exit
+    active = (fields[1] == wanted)
+  }
+  active { print }
+' "$plan" > "$out"
+
+if [ ! -s "$out" ]; then
+  echo "task ${task_id} not found in ${plan}" >&2
+  exit 3
+fi
+
+echo "wrote ${out}: $(wc -l < "$out" | tr -d ' ') lines"

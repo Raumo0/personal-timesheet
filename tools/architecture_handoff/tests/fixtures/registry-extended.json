@@ -1,0 +1,61 @@
+{
+  "targets": [
+    {
+      "key": "platform-root",
+      "provider": "jira",
+      "repository": "platform",
+      "repository_url": "https://git.example/platform.git",
+      "tracker_reference": "jira:EXAMPLE",
+      "routing_status": "active",
+      "owns": [
+        "platform coordination"
+      ],
+      "excludes": [],
+      "source_references": [],
+      "topology": "repository",
+      "adoption_reference": "jira:EXAMPLE-40",
+      "adoption_state": "done"
+    },
+    {
+      "key": "platform-api",
+      "provider": "jira",
+      "repository": "platform",
+      "repository_url": "https://git.example/platform.git",
+      "scoped_path": "services/api",
+      "tracker_reference": "jira:EXAMPLE",
+      "routing_status": "active",
+      "owns": [
+        "backend"
+      ],
+      "excludes": [
+        "frontend"
+      ],
+      "source_references": [
+        "git:docs@example-revision:architecture/05-building-block-view.md"
+      ],
+      "topology": "monorepo",
+      "adoption_reference": "jira:EXAMPLE-41",
+      "adoption_state": "done"
+    },
+    {
+      "key": "platform-contracts",
+      "provider": "jira",
+      "repository": "platform-contracts",
+      "repository_url": "https://git.example/contracts.git",
+      "tracker_reference": "jira:EXAMPLE",
+      "routing_status": "active",
+      "owns": [
+        "contracts"
+      ],
+      "excludes": [],
+      "source_references": [
+        "git:docs@example-revision:architecture/08-crosscutting-concepts.md"
+      ],
+      "topology": "submodule",
+      "superproject_target": "platform-root",
+      "submodule_path": "packages/contracts",
+      "adoption_reference": "jira:EXAMPLE-42",
+      "adoption_state": "in-progress"
+    }
+  ]
+}

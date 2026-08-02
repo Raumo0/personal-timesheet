@@ -1,0 +1,21 @@
+name: Validation Contract
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+      - name: Install pinned OpenSpec CLI
+        run: npm install --global @fission-ai/openspec@1.7.0
+      - name: Run the canonical validator
+        run: python3 tools/agentic_workflow/validate.py --output .agentic-workflow/validation-evidence.json
