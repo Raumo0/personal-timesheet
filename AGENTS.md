@@ -54,6 +54,12 @@ Common types: `feat`, `fix`, `docs`, `test`, `refactor`, `build`, `ci`, and
   the user explicitly requests it.
 - Never commit secrets, credentials, local databases, generated binaries, or
   rebuildable caches.
+- After completing a task, end the user-facing update with a concise
+  recommendation: commit now, or complete the next named task first and then
+  commit. State the concrete reason. Before that recommendation, state how the
+  user can verify the change: exact interface path and interactions when it is
+  wired into the application, or the exact test/code path when it is not yet
+  reachable in the interface.
 
 ## Validation
 
