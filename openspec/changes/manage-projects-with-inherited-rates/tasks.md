@@ -1,10 +1,10 @@
 ## 1. Project Domain Rules
 
-- [ ] 1.1 RED: add failing inheritance, override, explicit-zero, validation,
+- [x] 1.1 RED: add failing inheritance, override, explicit-zero, validation,
   normalization, and exact currency-rescaling cases in
   `src/features/projects/project.test.ts`; run
   `pnpm test -- src/features/projects/project.test.ts`.
-- [ ] 1.2 GREEN/REFACTOR: implement the smallest project schemas, domain types,
+- [x] 1.2 GREEN/REFACTOR: implement the smallest project schemas, domain types,
   effective-rate resolver, and exact rescaling helpers in
   `src/features/projects/project.ts`, reusing billing currency helpers from
   `src/features/clients/client.ts`; rerun
@@ -12,22 +12,22 @@
 
 ## 2. Catalog Interfaces and In-Memory Behavior
 
-- [ ] 2.1 RED: define shared create/edit/list/archive expectations in
+- [x] 2.1 RED: define shared create/edit/list/archive expectations in
   `src/features/projects/project-catalog.contract.ts` and failing focused tests
   in `src/features/projects/in-memory-project-catalog.test.ts`; run
   `pnpm test -- src/features/projects/in-memory-project-catalog.test.ts`.
-- [ ] 2.2 GREEN/REFACTOR: add the small `ProjectCatalog` interface and errors in
+- [x] 2.2 GREEN/REFACTOR: add the small `ProjectCatalog` interface and errors in
   `src/features/projects/project-catalog.ts`, then implement
   `src/features/projects/in-memory-project-catalog.ts` with client-scoped active
   name uniqueness and archival; rerun the focused test.
 
 ## 3. SQLite Schema and Persistence
 
-- [ ] 3.1 RED: extend `src-tauri/src/database.rs` tests for migration 2 with the
+- [x] 3.1 RED: extend `src-tauri/src/database.rs` tests for migration 2 with the
   project foreign key, nullable non-negative override, timestamps, and partial
   active-name uniqueness per client; run `cargo test database` from
   `src-tauri`.
-- [ ] 3.2 GREEN/REFACTOR: add migration 2 to `src-tauri/src/database.rs` without
+- [x] 3.2 GREEN/REFACTOR: add migration 2 to `src-tauri/src/database.rs` without
   editing migration 1; rerun `cargo test database` from `src-tauri`.
 - [ ] 3.3 RED: add project catalog contract and persistence failure cases in
   `src/features/projects/sqlite-project-catalog.test.ts`, including inherited
