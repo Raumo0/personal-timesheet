@@ -885,6 +885,65 @@ class ImplementationLoopSkillTests(unittest.TestCase):
             self.assertEqual(fixed["fix_round"], 1)
             self.assertEqual(fixed["reviewer_verdict"], "NEEDS_FIXES")
 
+    def test_fix_round_requires_fresh_validation_before_approved_checkbox_gate(self):
+        """Catches approval after fixes without a fresh validator-bound review."""
+        with GitEvidenceFixture() as fixture:
+            validated = fixture.validated_state(self.helper)
+            first_review = self.prepare_fixture_review(fixture, validated)
+            reviewing = self.helper.transition(validated, "review")
+            needs_fixes = self.write_reviewer_report(
+                fixture, first_review, "NEEDS_FIXES"
+            )
+            fixing = self.helper.transition(
+                reviewing,
+                "fixing",
+                reviewer_verdict="NEEDS_FIXES",
+                reviewer_report=needs_fixes,
+            )
+            implementing = self.helper.transition(fixing, "implementing")
+            with self.assertRaises(PermissionError):
+                self.helper.transition(
+                    implementing,
+                    "approved",
+                    reviewer_verdict="APPROVED",
+                    reviewer_report=needs_fixes,
+                )
+
+            refreshed = self.helper.run_canonical_validation(
+                implementing, "implementer-round-two.md"
+            )
+            second_review = self.prepare_fixture_review(fixture, refreshed)
+            reviewing = self.helper.transition(refreshed, "review")
+            approved_report = self.write_reviewer_report(
+                fixture, second_review, "APPROVED"
+            )
+            approved = self.helper.transition(
+                reviewing,
+                "approved",
+                reviewer_verdict="APPROVED",
+                reviewer_report=approved_report,
+            )
+            self.assertEqual(approved["phase"], "approved")
+            self.assertEqual(
+                self.helper.select_task(
+                    "- [x] 5.4 complete\n- [ ] 5.5 next\n",
+                    {"5.4", "5.5"},
+                    approved,
+                    set(),
+                    expected_change_id="change",
+                ),
+                "5.5",
+            )
+
+    def test_checkbox_guard_permits_only_approved_state(self):
+        """Catches a controller marking an OpenSpec task before APPROVED."""
+        guard = getattr(self.helper, "may_mark_task_complete", None)
+        self.assertIsNotNone(guard, "checkbox approval guard is absent")
+        for phase in ("selected", "implementing", "validated", "review", "fixing"):
+            with self.subTest(phase=phase):
+                self.assertFalse(guard(state_fixture(self.helper, phase)))
+        self.assertTrue(guard(state_fixture(self.helper, "approved")))
+
     def test_review_to_approved_requires_approved_report(self):
         """Catches completion approval without an independent APPROVED report."""
         with GitEvidenceFixture() as fixture:

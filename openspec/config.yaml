@@ -1,4 +1,4 @@
-schema: spec-driven
+schema: governed-spec-driven
 
 context: |
   Personal Timesheet is a local-first, cross-platform time-tracking
@@ -10,6 +10,9 @@ context: |
   Begin every new feature or material behavior change with OpenSpec Explore.
   Create a proposal only after the user approves the explored direction.
   AGENTS.md is the authoritative repository-wide working agreement.
+  Governed changes keep canonical task execution evidence and reviewer reports
+  under `.agentic-workflow/`; change artifacts plan those inputs but do not
+  duplicate them.
 
 rules:
   proposal:
@@ -26,6 +29,12 @@ rules:
   tasks:
     - Name exact files and verification commands for each implementation task.
     - Express behavior changes as red-green-refactor test cycles.
+  validation:
+    - Define deterministic validation commands, expected evidence, and manual limitations.
+    - Keep canonical per-task execution evidence under `.agentic-workflow/`.
+  review:
+    - Define independent-review scope, validation inputs, and verdict format.
+    - Keep a task checkbox unchecked until an independent APPROVED verdict.
 
 operations:
   apply:
@@ -33,6 +42,7 @@ operations:
       - Use rg to search the relevant code and exports before creating a module, function, type, or UI component.
       - Keep implementation limited to the selected change and preserve unrelated user changes.
       - Run focused tests first, then the relevant build and Rust checks.
+      - For `governed-spec-driven` changes, let native apply select the task, then hand execution to `implementation-loop` for validation, review, fix rounds, and the APPROVED checkbox gate.
   archive:
     guidance:
       - Verify implementation, completed tasks, and resulting main specs agree before archiving.

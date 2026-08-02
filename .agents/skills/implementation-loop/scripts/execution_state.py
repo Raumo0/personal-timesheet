@@ -810,6 +810,12 @@ def select_task(
     return next((task for task in unchecked if task in allowed), None)
 
 
+def may_mark_task_complete(state: dict) -> bool:
+    """Return whether the controller may mark this task checkbox complete."""
+    validate_state(state)
+    return state["phase"] == "approved" and state["reviewer_verdict"] == "APPROVED"
+
+
 def prepare_dispatch(
     profile: str,
     task_id: str,

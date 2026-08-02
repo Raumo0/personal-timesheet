@@ -73,6 +73,14 @@ Use the current artifact-guided OPSX workflow for new features and material
 behavior changes. In Codex, invoke its actions through the generated
 `$openspec-*` skills.
 
+- For a change declared with `governed-spec-driven`, native
+  `$openspec-apply-change` selects the OpenSpec task only. Then invoke
+  `implementation-loop`; it owns execution, canonical validation,
+  independent review, fix rounds, and the precondition for marking the task
+  checkbox.
+- Do not mark a governed task checkbox until an independent reviewer records
+  `APPROVED` for that task's current validated diff.
+
 Treat these as iterative actions, not locked phases. Revisit approved planning
 artifacts when implementation reveals a gap, then continue from the updated
 artifacts.
