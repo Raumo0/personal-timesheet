@@ -116,7 +116,7 @@
 
 ## 9. Integrated Verification
 
-- [ ] 9.1 Run `pnpm test`, `pnpm build`,
+- [x] 9.1 Run `pnpm test`, `pnpm build`,
   `cargo test --manifest-path src-tauri/Cargo.toml`,
   `cargo check --manifest-path src-tauri/Cargo.toml`,
   `pnpm exec openspec validate manage-tasks-with-inherited-rates --strict`, and

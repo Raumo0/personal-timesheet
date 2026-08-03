@@ -3,9 +3,10 @@ import { describe, expect, test, vi } from "vitest";
 import type { SqlDatabase } from "../clients/database";
 import { taskCatalogContract } from "./task-catalog.contract";
 import { SqliteTaskCatalog } from "./sqlite-task-catalog";
+import type { TaskRow } from "./task";
 
 const now = "2026-08-03T10:00:00.000Z";
-const inheritedRow = {
+const inheritedRow: TaskRow = {
   id: "task-1",
   project_id: "project-1",
   name: "Discovery",

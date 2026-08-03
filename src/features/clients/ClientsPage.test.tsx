@@ -38,6 +38,7 @@ describe("Clients page", () => {
   test("shows a loading state while local data is being read", () => {
     const catalog: ClientCatalog = {
       list: () => new Promise(() => undefined),
+      get: async () => client(),
       create: async () => client(),
       update: async () => client(),
       archive: async () => undefined,
@@ -179,6 +180,7 @@ describe("Clients page", () => {
       .mockResolvedValueOnce([client()]);
     const catalog: ClientCatalog = {
       list,
+      get: async () => client(),
       create: async () => client(),
       update: async () => client(),
       archive: async () => undefined,
@@ -197,6 +199,7 @@ describe("Clients page", () => {
   test("preserves the form when a save fails", async () => {
     const catalog: ClientCatalog = {
       list: async () => [],
+      get: async () => client(),
       create: async () => {
         throw new Error("The local change was not saved");
       },

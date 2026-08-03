@@ -76,7 +76,7 @@ test("recovers from a project catalog read failure", async () => {
   render(
     <ProjectsPage
       client={{ id: "client-1", name: "Acme", currencyCode: "EUR", hourlyRateMinor: null, createdAt: "2026-08-02T10:00:00.000Z", updatedAt: "2026-08-02T10:00:00.000Z", archivedAt: null }}
-      catalog={{ list, create: async () => { throw new Error("not used"); }, update: async () => { throw new Error("not used"); }, archive: async () => undefined }}
+      catalog={{ list, get: async () => { throw new Error("not used"); }, create: async () => { throw new Error("not used"); }, update: async () => { throw new Error("not used"); }, archive: async () => undefined }}
     />,
   );
 
