@@ -23,6 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { ClientCatalog } from "@/features/clients/client-catalog";
 import type { ProjectCatalog } from "@/features/projects/project-catalog";
+import type { TaskCatalog } from "@/features/tasks/task-catalog";
 import type { BackupService } from "@/features/backup/backup-service";
 
 import {
@@ -43,6 +44,7 @@ const SettingsDataPage = lazy(() =>
   })),
 );
 const ProjectsPage = lazy(() => import("@/features/projects/ProjectsPage").then((module) => ({ default: module.ProjectsPage })));
+const TasksPage = lazy(() => import("@/features/tasks/TasksPage").then((module) => ({ default: module.TasksPage })));
 
 function ProjectWorkspaceRoute({ clientCatalog, projectCatalog }: { clientCatalog: ClientCatalog; projectCatalog: ProjectCatalog }) {
   const { clientId } = useParams();
@@ -53,6 +55,79 @@ function ProjectWorkspaceRoute({ clientCatalog, projectCatalog }: { clientCatalo
   })(); }, [clientCatalog, clientId]);
   if (!client) return <p role="status">Opening projects…</p>;
   return <ProjectsPage client={client} catalog={projectCatalog} />;
+}
+
+function TaskWorkspaceUnavailable() {
+  return (
+    <div className="flex min-h-64 flex-col items-center justify-center text-center">
+      <h1 className="text-xl font-semibold tracking-tight">Task workspace unavailable</h1>
+      <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+        The selected client or project could not be found in local data.
+      </p>
+      <Button className="mt-4" render={<NavLink to="/clients" />} variant="outline">
+        Back to clients
+      </Button>
+    </div>
+  );
+}
+
+function TaskWorkspaceRoute({
+  clientCatalog,
+  projectCatalog,
+  taskCatalog,
+}: {
+  clientCatalog: ClientCatalog;
+  projectCatalog: ProjectCatalog;
+  taskCatalog: TaskCatalog;
+}) {
+  const { clientId, projectId } = useParams();
+  const [context, setContext] = useState<
+    | { status: "loading" }
+    | { status: "unavailable" }
+    | {
+        status: "loaded";
+        client: import("@/features/clients/client").Client;
+        project: import("@/features/projects/project").Project;
+      }
+  >({ status: "loading" });
+
+  useEffect(() => {
+    let current = true;
+    setContext({ status: "loading" });
+    void (async () => {
+      if (!clientId || !projectId) {
+        if (current) setContext({ status: "unavailable" });
+        return;
+      }
+      try {
+        const [client, project] = await Promise.all([
+          clientCatalog.get(clientId),
+          projectCatalog.get(clientId, projectId),
+        ]);
+        if (!current) return;
+        if (project.clientId !== client.id) {
+          setContext({ status: "unavailable" });
+          return;
+        }
+        setContext({ status: "loaded", client, project });
+      } catch {
+        if (current) setContext({ status: "unavailable" });
+      }
+    })();
+    return () => {
+      current = false;
+    };
+  }, [clientCatalog, clientId, projectCatalog, projectId]);
+
+  if (context.status === "loading") return <p role="status">Opening tasks…</p>;
+  if (context.status === "unavailable") return <TaskWorkspaceUnavailable />;
+  return (
+    <TasksPage
+      catalog={taskCatalog}
+      client={context.client}
+      project={context.project}
+    />
+  );
 }
 
 function SidebarDestination({
@@ -97,10 +172,12 @@ export function AppShell({
   backupService,
   clientCatalog,
   projectCatalog,
+  taskCatalog,
 }: {
   backupService: BackupService;
   clientCatalog: ClientCatalog;
   projectCatalog: ProjectCatalog;
+  taskCatalog: TaskCatalog;
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const location = useLocation();
@@ -203,6 +280,18 @@ export function AppShell({
             )}
           >
             <Routes>
+              <Route
+                path="/clients/:clientId/projects/:projectId/tasks"
+                element={
+                  <Suspense fallback={<p role="status">Opening tasks…</p>}>
+                    <TaskWorkspaceRoute
+                      clientCatalog={clientCatalog}
+                      projectCatalog={projectCatalog}
+                      taskCatalog={taskCatalog}
+                    />
+                  </Suspense>
+                }
+              />
               <Route path="/clients/:clientId/projects" element={<Suspense fallback={<p role="status">Opening projects…</p>}><ProjectWorkspaceRoute clientCatalog={clientCatalog} projectCatalog={projectCatalog} /></Suspense>} />
               {navigationDestinations.map((destination) => (
                 <Route

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Archive, FolderKanban, Pencil, Plus, RotateCcw } from "lucide-react";
+import { Link } from "react-router";
 
 import {
   AlertDialog,
@@ -203,7 +204,14 @@ export function ProjectsPage({ client, catalog }: ProjectsPageProps) {
                 );
                 return (
                   <TableRow key={project.id}>
-                    <TableCell className="max-w-96 px-4 py-3 font-medium">{project.name}</TableCell>
+                    <TableCell className="max-w-96 px-4 py-3 font-medium">
+                      <Link
+                        className="rounded-sm transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        to={`/clients/${client.id}/projects/${project.id}/tasks`}
+                      >
+                        {project.name}
+                      </Link>
+                    </TableCell>
                     <TableCell className="py-3 text-muted-foreground">
                       {project.hourlyRateOverrideMinor === null ? "Inherited" : "Override"}
                     </TableCell>

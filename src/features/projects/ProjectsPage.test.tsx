@@ -1,11 +1,16 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render as testingLibraryRender, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router";
 
 import { InMemoryProjectCatalog } from "./in-memory-project-catalog";
 import { ProjectsPage } from "./ProjectsPage";
 
 afterEach(cleanup);
+
+function render(ui: React.ReactNode) {
+  return testingLibraryRender(<MemoryRouter>{ui}</MemoryRouter>);
+}
 
 test("shows an empty project workspace with a create action", async () => {
   render(
@@ -30,6 +35,22 @@ test("shows an active project's effective client rate", async () => {
   expect(await screen.findByText("Website")).toBeInTheDocument();
   expect(screen.getByText("€125.00")).toBeInTheDocument();
   expect(screen.getByText("Client default")).toBeInTheDocument();
+});
+
+test("links the project name to its task screen without replacing row actions", async () => {
+  render(
+    <ProjectsPage
+      client={{ id: "client-1", name: "Acme", currencyCode: "EUR", hourlyRateMinor: 12_500, createdAt: "2026-08-02T10:00:00.000Z", updatedAt: "2026-08-02T10:00:00.000Z", archivedAt: null }}
+      catalog={new InMemoryProjectCatalog({ projects: [{ id: "project-1", clientId: "client-1", name: "Website", hourlyRateOverrideMinor: null, createdAt: "2026-08-02T10:00:00.000Z", updatedAt: "2026-08-02T10:00:00.000Z", archivedAt: null }] })}
+    />,
+  );
+
+  expect(await screen.findByRole("link", { name: "Website" })).toHaveAttribute(
+    "href",
+    "/clients/client-1/projects/project-1/tasks",
+  );
+  expect(screen.getByRole("button", { name: "Edit Website" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Archive Website" })).toBeInTheDocument();
 });
 
 test("keeps archived projects out of the active workspace", async () => {

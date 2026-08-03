@@ -5,10 +5,12 @@ import { ThemeProvider } from "@/app/theme/ThemeProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SqliteClientCatalog } from "@/features/clients/sqlite-client-catalog";
 import { SqliteProjectCatalog } from "@/features/projects/sqlite-project-catalog";
+import { SqliteTaskCatalog } from "@/features/tasks/sqlite-task-catalog";
 import { TauriBackupService } from "@/features/backup/tauri-backup-service";
 
 const clientCatalog = new SqliteClientCatalog();
 const projectCatalog = new SqliteProjectCatalog();
+const taskCatalog = new SqliteTaskCatalog();
 const backupService = new TauriBackupService();
 
 function App() {
@@ -20,6 +22,7 @@ function App() {
             backupService={backupService}
             clientCatalog={clientCatalog}
             projectCatalog={projectCatalog}
+            taskCatalog={taskCatalog}
           />
         </HashRouter>
       </TooltipProvider>

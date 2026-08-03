@@ -9,7 +9,41 @@ import { ThemeProvider } from "@/app/theme/ThemeProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { InMemoryClientCatalog } from "@/features/clients/in-memory-client-catalog";
 import { InMemoryProjectCatalog } from "@/features/projects/in-memory-project-catalog";
+import { InMemoryTaskCatalog } from "@/features/tasks/in-memory-task-catalog";
 import { InMemoryBackupService } from "@/features/backup/in-memory-backup-service";
+
+const timestamp = "2026-08-03T08:00:00.000Z";
+const client = { id: "client-1", name: "Acme", currencyCode: "EUR", hourlyRateMinor: 12_500, createdAt: timestamp, updatedAt: timestamp, archivedAt: null };
+const project = { id: "project-1", clientId: client.id, name: "Website", hourlyRateOverrideMinor: null, createdAt: timestamp, updatedAt: timestamp, archivedAt: null };
+
+function renderTaskRoute(
+  path = "/clients/client-1/projects/project-1/tasks",
+  catalogs = {
+    clientCatalog: new InMemoryClientCatalog({ clients: [client] }),
+    projectCatalog: new InMemoryProjectCatalog({ projects: [project] }),
+    taskCatalog: new InMemoryTaskCatalog(),
+  },
+) {
+  vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }));
+  return render(
+    <ThemeProvider>
+      <TooltipProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <AppShell
+            backupService={new InMemoryBackupService()}
+            clientCatalog={catalogs.clientCatalog}
+            projectCatalog={catalogs.projectCatalog}
+            taskCatalog={catalogs.taskCatalog}
+          />
+        </MemoryRouter>
+      </TooltipProvider>
+    </ThemeProvider>,
+  );
+}
 
 function renderApp() {
   vi.stubGlobal(
@@ -88,6 +122,7 @@ describe("application shell", () => {
               backupService={new InMemoryBackupService()}
               clientCatalog={new InMemoryClientCatalog()}
               projectCatalog={new InMemoryProjectCatalog()}
+              taskCatalog={new InMemoryTaskCatalog()}
             />
           </MemoryRouter>
         </TooltipProvider>
@@ -111,10 +146,103 @@ describe("application shell", () => {
     vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
     render(
       <ThemeProvider><TooltipProvider><MemoryRouter initialEntries={["/clients/client-1/projects"]}>
-        <AppShell backupService={new InMemoryBackupService()} clientCatalog={new InMemoryClientCatalog({ clients: [{ id: "client-1", name: "Acme", currencyCode: "EUR", hourlyRateMinor: 12_500, createdAt: "2026-08-02T10:00:00.000Z", updatedAt: "2026-08-02T10:00:00.000Z", archivedAt: null }] })} projectCatalog={new InMemoryProjectCatalog()} />
+        <AppShell backupService={new InMemoryBackupService()} clientCatalog={new InMemoryClientCatalog({ clients: [{ id: "client-1", name: "Acme", currencyCode: "EUR", hourlyRateMinor: 12_500, createdAt: "2026-08-02T10:00:00.000Z", updatedAt: "2026-08-02T10:00:00.000Z", archivedAt: null }] })} projectCatalog={new InMemoryProjectCatalog()} taskCatalog={new InMemoryTaskCatalog()} />
       </MemoryRouter></TooltipProvider></ThemeProvider>,
     );
     expect(await screen.findByRole("heading", { name: "Projects" })).toBeInTheDocument();
+  });
+
+  test("opens a project task workspace from its deep link", async () => {
+    renderTaskRoute(
+      "/clients/client-1/projects/project-1/tasks",
+      {
+        clientCatalog: new InMemoryClientCatalog({ clients: [client] }),
+        projectCatalog: new InMemoryProjectCatalog({ projects: [project] }),
+        taskCatalog: new InMemoryTaskCatalog({ tasks: [{ id: "task-1", projectId: project.id, name: "Research", hourlyRateOverrideMinor: null, createdAt: timestamp, updatedAt: timestamp, archivedAt: null }] }),
+      },
+    );
+
+    expect(await screen.findByRole("heading", { name: "Tasks" })).toBeInTheDocument();
+    expect(screen.getByText("Acme")).toBeInTheDocument();
+    expect(screen.getByText("Website")).toBeInTheDocument();
+    expect(await screen.findByText("Research")).toBeInTheDocument();
+  });
+
+  test("reconstructs task context from catalog lookups after a direct refresh", async () => {
+    renderTaskRoute();
+
+    expect(await screen.findByRole("heading", { name: "Tasks" })).toBeInTheDocument();
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(within(breadcrumb).getByText("Acme")).toBeInTheDocument();
+    expect(within(breadcrumb).getByRole("link", { name: "Website" })).toHaveAttribute(
+      "href",
+      "/clients/client-1/projects",
+    );
+  });
+
+  test.each([
+    {
+      context: "missing client",
+      catalogs: {
+        clientCatalog: new InMemoryClientCatalog(),
+        projectCatalog: new InMemoryProjectCatalog({ projects: [project] }),
+        taskCatalog: new InMemoryTaskCatalog(),
+      },
+    },
+    {
+      context: "project belonging to another client",
+      catalogs: {
+        clientCatalog: new InMemoryClientCatalog({ clients: [client] }),
+        projectCatalog: new InMemoryProjectCatalog({ projects: [{ ...project, clientId: "client-2" }] }),
+        taskCatalog: new InMemoryTaskCatalog(),
+      },
+    },
+  ])("shows a bounded unavailable state for $context", async ({ catalogs }) => {
+    renderTaskRoute("/clients/client-1/projects/project-1/tasks", catalogs);
+
+    expect(await screen.findByRole("heading", { name: "Task workspace unavailable" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Tasks" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to clients" })).toHaveAttribute(
+      "href",
+      "/clients",
+    );
+  });
+
+  test("returns from tasks to the selected client's project workspace", async () => {
+    const user = userEvent.setup();
+    renderTaskRoute();
+
+    await user.click(await screen.findByRole("link", { name: "Website" }));
+
+    expect(await screen.findByRole("heading", { name: "Projects" })).toBeInTheDocument();
+    expect(screen.getByText(/Manage projects and rate choices for Acme/)).toBeInTheDocument();
+  });
+
+  test("shows a task-route fallback while lazy content and context are loading", async () => {
+    let resolveClient!: (value: typeof client) => void;
+    const clientCatalog = new InMemoryClientCatalog({ clients: [client] });
+    vi.spyOn(clientCatalog, "get").mockImplementationOnce(
+      () => new Promise((resolve) => { resolveClient = resolve; }),
+    );
+    renderTaskRoute("/clients/client-1/projects/project-1/tasks", {
+      clientCatalog,
+      projectCatalog: new InMemoryProjectCatalog({ projects: [project] }),
+      taskCatalog: new InMemoryTaskCatalog(),
+    });
+
+    expect(screen.getByRole("status")).toHaveTextContent("Opening tasks…");
+    resolveClient(client);
+    expect(await screen.findByRole("heading", { name: "Tasks" })).toBeInTheDocument();
+  });
+
+  test("keeps Clients active on a nested task route", async () => {
+    renderTaskRoute();
+
+    expect(await screen.findByRole("heading", { name: "Tasks" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Clients" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 
   test("keeps destinations accessible when the sidebar is collapsed", async () => {
@@ -193,6 +321,7 @@ describe("application shell", () => {
               backupService={new InMemoryBackupService()}
               clientCatalog={new InMemoryClientCatalog()}
               projectCatalog={new InMemoryProjectCatalog()}
+              taskCatalog={new InMemoryTaskCatalog()}
             />
           </MemoryRouter>
         </TooltipProvider>
