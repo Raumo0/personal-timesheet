@@ -41,6 +41,17 @@ export class InMemoryProjectCatalog implements ProjectCatalog {
     );
   }
 
+  async get(clientId: string, id: string): Promise<Project> {
+    this.throwConfiguredFailure();
+    const project = this.projects.find(
+      (candidate) => candidate.id === id && candidate.clientId === clientId,
+    );
+    if (!project) {
+      throw new ProjectCatalogError("not-found", "Project was not found");
+    }
+    return structuredClone(project);
+  }
+
   async create(clientId: string, input: ProjectCommand): Promise<Project> {
     this.throwConfiguredFailure();
     const command = projectCommandSchema.parse(input);

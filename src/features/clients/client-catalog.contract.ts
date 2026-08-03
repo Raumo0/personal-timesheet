@@ -64,5 +64,37 @@ export function clientCatalogContract(
         { id: client.id, archivedAt: expect.any(String) },
       ]);
     });
+
+    test("looks up active and archived clients by ID", async () => {
+      const catalog = createCatalog();
+      const activeClient = await catalog.create({
+        name: "Acme",
+        currencyCode: "EUR",
+        hourlyRateMinor: null,
+      });
+      const archivedClient = await catalog.create({
+        name: "Northwind",
+        currencyCode: "USD",
+        hourlyRateMinor: 0,
+      });
+      await catalog.archive(archivedClient.id);
+
+      await expect(catalog.get(activeClient.id)).resolves.toMatchObject({
+        id: activeClient.id,
+        archivedAt: null,
+      });
+      await expect(catalog.get(archivedClient.id)).resolves.toMatchObject({
+        id: archivedClient.id,
+        archivedAt: expect.any(String),
+      });
+    });
+
+    test("rejects a missing client ID lookup", async () => {
+      const catalog = createCatalog();
+
+      await expect(catalog.get("missing-client")).rejects.toMatchObject({
+        code: "not-found",
+      });
+    });
   });
 }

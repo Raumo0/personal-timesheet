@@ -48,6 +48,42 @@ test("persists an inherited null override and scopes active project queries to a
   );
 });
 
+test("looks up active and archived projects by matching client and project IDs", async () => {
+  const archivedRow = { ...row, id: "project-2", archived_at: now };
+  const database = createDatabase();
+  database.select
+    .mockResolvedValueOnce([row])
+    .mockResolvedValueOnce([archivedRow]);
+  const catalog = new SqliteProjectCatalog({ getDatabase: async () => database });
+
+  await expect(catalog.get("client-1", "project-1")).resolves.toMatchObject({
+    id: "project-1",
+    clientId: "client-1",
+    archivedAt: null,
+  });
+  await expect(catalog.get("client-1", "project-2")).resolves.toMatchObject({
+    id: "project-2",
+    clientId: "client-1",
+    archivedAt: now,
+  });
+  expect(database.select).toHaveBeenLastCalledWith(
+    expect.stringContaining("WHERE id = $1 AND client_id = $2"),
+    ["project-2", "client-1"],
+  );
+});
+
+test("maps missing and mismatched project lookups to not found", async () => {
+  const database = createDatabase([]);
+  const catalog = new SqliteProjectCatalog({ getDatabase: async () => database });
+
+  await expect(catalog.get("client-1", "missing-project")).rejects.toMatchObject({
+    code: "not-found",
+  });
+  await expect(catalog.get("client-2", "project-1")).rejects.toMatchObject({
+    code: "not-found",
+  });
+});
+
 test("preserves an explicit zero override and maps persistence failures", async () => {
   const database = createDatabase([{ ...row, hourly_rate_override_minor: 0 }]);
   const catalog = new SqliteProjectCatalog({ getDatabase: async () => database });

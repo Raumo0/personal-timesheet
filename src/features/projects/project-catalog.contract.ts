@@ -66,5 +66,44 @@ export function projectCatalogContract(
         { id: project.id, archivedAt: expect.any(String) },
       ]);
     });
+
+    test("looks up active and archived projects by their client and project IDs", async () => {
+      const catalog = createCatalog();
+      const activeProject = await catalog.create("client-1", {
+        name: "Website",
+        hourlyRateOverrideMinor: null,
+      });
+      const archivedProject = await catalog.create("client-1", {
+        name: "Mobile app",
+        hourlyRateOverrideMinor: 0,
+      });
+      await catalog.archive("client-1", archivedProject.id);
+
+      await expect(catalog.get("client-1", activeProject.id)).resolves.toMatchObject({
+        id: activeProject.id,
+        clientId: "client-1",
+        archivedAt: null,
+      });
+      await expect(catalog.get("client-1", archivedProject.id)).resolves.toMatchObject({
+        id: archivedProject.id,
+        clientId: "client-1",
+        archivedAt: expect.any(String),
+      });
+    });
+
+    test("rejects missing and mismatched project ID lookups", async () => {
+      const catalog = createCatalog();
+      const project = await catalog.create("client-1", {
+        name: "Website",
+        hourlyRateOverrideMinor: null,
+      });
+
+      await expect(catalog.get("client-1", "missing-project")).rejects.toMatchObject({
+        code: "not-found",
+      });
+      await expect(catalog.get("client-2", project.id)).rejects.toMatchObject({
+        code: "not-found",
+      });
+    });
   });
 }

@@ -49,6 +49,20 @@ export class SqliteProjectCatalog implements ProjectCatalog {
     });
   }
 
+  async get(clientId: string, id: string): Promise<Project> {
+    return this.translateErrors(async () => {
+      const database = await this.getDatabase();
+      const rows = await database.select(
+        `${SELECT_COLUMNS} WHERE id = $1 AND client_id = $2`,
+        [id, clientId],
+      );
+      if (rows.length !== 1) {
+        throw new ProjectCatalogError("not-found", "Project was not found");
+      }
+      return projectFromRow(rows[0]);
+    });
+  }
+
   async create(clientId: string, input: ProjectCommand): Promise<Project> {
     return this.translateErrors(async () => {
       const command = projectCommandSchema.parse(input);

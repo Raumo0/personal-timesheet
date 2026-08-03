@@ -53,6 +53,29 @@ pub fn client_migrations() -> Vec<Migration> {
         "#,
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "create task catalog",
+            sql: r#"
+            CREATE TABLE tasks (
+                id TEXT PRIMARY KEY NOT NULL,
+                project_id TEXT NOT NULL REFERENCES projects(id),
+                name TEXT NOT NULL,
+                normalized_name TEXT NOT NULL,
+                hourly_rate_override_minor INTEGER CHECK (
+                    hourly_rate_override_minor IS NULL OR hourly_rate_override_minor >= 0
+                ),
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                archived_at TEXT
+            );
+
+            CREATE UNIQUE INDEX tasks_active_project_name_unique
+                ON tasks(project_id, normalized_name)
+                WHERE archived_at IS NULL;
+        "#,
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
@@ -88,5 +111,30 @@ mod tests {
             .sql
             .contains("ON projects(client_id, normalized_name)"));
         assert!(migrations[1].sql.contains("WHERE archived_at IS NULL"));
+    }
+
+    #[test]
+    fn third_migration_defines_tasks_and_project_scoped_active_name_uniqueness() {
+        let migrations = client_migrations();
+
+        assert_eq!(migrations[2].version, 3);
+        let normalized_sql = migrations[2]
+            .sql
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(migrations[2].sql.contains("CREATE TABLE tasks"));
+        assert!(migrations[2]
+            .sql
+            .contains("project_id TEXT NOT NULL REFERENCES projects(id)"));
+        assert!(normalized_sql.contains(
+            "hourly_rate_override_minor INTEGER CHECK ( hourly_rate_override_minor IS NULL OR hourly_rate_override_minor >= 0 )"
+        ));
+        assert!(migrations[2].sql.contains("created_at TEXT NOT NULL"));
+        assert!(migrations[2].sql.contains("updated_at TEXT NOT NULL"));
+        assert!(migrations[2]
+            .sql
+            .contains("ON tasks(project_id, normalized_name)"));
+        assert!(migrations[2].sql.contains("WHERE archived_at IS NULL"));
     }
 }

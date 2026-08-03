@@ -38,6 +38,15 @@ export class InMemoryClientCatalog implements ClientCatalog {
     );
   }
 
+  async get(id: string): Promise<Client> {
+    this.throwConfiguredFailure();
+    const client = this.clients.find((candidate) => candidate.id === id);
+    if (!client) {
+      throw new ClientCatalogError("not-found", "Client was not found");
+    }
+    return structuredClone(client);
+  }
+
   async create(input: ClientCommand): Promise<Client> {
     this.throwConfiguredFailure();
     const command = clientCommandSchema.parse(input);

@@ -40,6 +40,37 @@ describe("SQLite client catalog", () => {
     );
   });
 
+  test("looks up active and archived clients by ID", async () => {
+    const archivedRow = { ...row, id: "client-2", archived_at: now };
+    const database = createDatabase();
+    database.select
+      .mockResolvedValueOnce([row])
+      .mockResolvedValueOnce([archivedRow]);
+    const catalog = new SqliteClientCatalog({ getDatabase: async () => database });
+
+    await expect(catalog.get("client-1")).resolves.toMatchObject({
+      id: "client-1",
+      archivedAt: null,
+    });
+    await expect(catalog.get("client-2")).resolves.toMatchObject({
+      id: "client-2",
+      archivedAt: now,
+    });
+    expect(database.select).toHaveBeenLastCalledWith(
+      expect.stringContaining("WHERE id = $1"),
+      ["client-2"],
+    );
+  });
+
+  test("maps missing client ID lookup to not found", async () => {
+    const database = createDatabase([]);
+    const catalog = new SqliteClientCatalog({ getDatabase: async () => database });
+
+    await expect(catalog.get("missing-client")).rejects.toMatchObject({
+      code: "not-found",
+    });
+  });
+
   test("binds normalized data when creating a client", async () => {
     const database = createDatabase();
     const catalog = new SqliteClientCatalog({

@@ -52,6 +52,17 @@ export class SqliteClientCatalog implements ClientCatalog {
     });
   }
 
+  async get(id: string): Promise<Client> {
+    return this.translateErrors(async () => {
+      const database = await this.getDatabase();
+      const rows = await database.select(`${SELECT_COLUMNS} WHERE id = $1`, [id]);
+      if (rows.length !== 1) {
+        throw new ClientCatalogError("not-found", "Client was not found");
+      }
+      return clientFromRow(rows[0]);
+    });
+  }
+
   async create(input: ClientCommand): Promise<Client> {
     return this.translateErrors(async () => {
       const command = clientCommandSchema.parse(input);

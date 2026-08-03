@@ -1,29 +1,29 @@
 ## 1. Task Domain Rules
 
-- [ ] 1.1 RED: add failing normalization, row-boundary, validation,
+- [x] 1.1 RED: add failing normalization, row-boundary, validation,
   inheritance-chain, source, unset, and explicit-zero cases in
   `src/features/tasks/task.test.ts`; run
   `pnpm test -- src/features/tasks/task.test.ts`.
-- [ ] 1.2 GREEN/REFACTOR: implement the smallest task schemas, domain types,
+- [x] 1.2 GREEN/REFACTOR: implement the smallest task schemas, domain types,
   row mapping, and one pure Task → Project → Client rate resolver in
   `src/features/tasks/task.ts`, reusing project/client rate behavior without a
   generic rate engine; rerun `pnpm test -- src/features/tasks/task.test.ts`.
 
 ## 2. Task Catalog Interface and In-Memory Adapter
 
-- [ ] 2.1 RED: define shared create/edit/list/archive expectations in
-  `src/features/tasks/task-catalog.contract.ts` and add failing focused tests in
-  `src/features/tasks/in-memory-task-catalog.test.ts` for project-scoped active
-  names, archived separation, zero overrides, and failures; run
-  `pnpm test -- src/features/tasks/in-memory-task-catalog.test.ts`.
-- [ ] 2.2 GREEN/REFACTOR: add the small `TaskCatalog` interface and errors in
-  `src/features/tasks/task-catalog.ts`, then implement
+- [x] 2.1 RED/GREEN/REFACTOR: define shared create/edit/list/archive
+  expectations in `src/features/tasks/task-catalog.contract.ts`, add focused
+  tests in `src/features/tasks/in-memory-task-catalog.test.ts` for
+  project-scoped active names, archived separation, zero overrides, and
+  failures, then immediately add the small `TaskCatalog` interface and errors
+  in `src/features/tasks/task-catalog.ts` and implement
   `src/features/tasks/in-memory-task-catalog.ts` without a generic catalog
-  abstraction; rerun the focused test.
+  abstraction. Record the focused test failing before implementation and
+  passing afterward: `pnpm test -- src/features/tasks/in-memory-task-catalog.test.ts`.
 
 ## 3. Durable Client and Project Lookup
 
-- [ ] 3.1 RED: extend `src/features/clients/client-catalog.contract.ts`,
+- [x] 3.1 RED: extend `src/features/clients/client-catalog.contract.ts`,
   `src/features/clients/in-memory-client-catalog.test.ts`,
   `src/features/clients/sqlite-client-catalog.test.ts`,
   `src/features/projects/project-catalog.contract.ts`,
@@ -31,7 +31,7 @@
   `src/features/projects/sqlite-project-catalog.test.ts` with failing ID lookup
   cases for active, archived, missing, and mismatched records; run
   `pnpm test -- src/features/clients/in-memory-client-catalog.test.ts src/features/clients/sqlite-client-catalog.test.ts src/features/projects/in-memory-project-catalog.test.ts src/features/projects/sqlite-project-catalog.test.ts`.
-- [ ] 3.2 GREEN/REFACTOR: extend `ClientCatalog` and `ProjectCatalog` plus their
+- [x] 3.2 GREEN/REFACTOR: extend `ClientCatalog` and `ProjectCatalog` plus their
   in-memory and SQLite adapters with durable ID lookup in
   `src/features/clients/client-catalog.ts`,
   `src/features/clients/in-memory-client-catalog.ts`,
@@ -42,11 +42,11 @@
 
 ## 4. SQLite Task Persistence
 
-- [ ] 4.1 RED: extend `src-tauri/src/database.rs` tests for migration 3 with
+- [x] 4.1 RED: extend `src-tauri/src/database.rs` tests for migration 3 with
   the task foreign key, nullable non-negative override, timestamps, and partial
   active-name uniqueness per project; run
   `cargo test --manifest-path src-tauri/Cargo.toml database`.
-- [ ] 4.2 GREEN/REFACTOR: add migration 3 to `src-tauri/src/database.rs`
+- [x] 4.2 GREEN/REFACTOR: add migration 3 to `src-tauri/src/database.rs`
   without modifying migrations 1 or 2; rerun
   `cargo test --manifest-path src-tauri/Cargo.toml database`.
 - [ ] 4.3 RED: add the shared task catalog contract and persistence-failure

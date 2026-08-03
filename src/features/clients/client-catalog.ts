@@ -23,6 +23,7 @@ export class ClientCatalogError extends Error {
 
 export interface ClientCatalog {
   list(filter: ClientList): Promise<Client[]>;
+  get(id: string): Promise<Client>;
   create(command: ClientCommand): Promise<Client>;
   update(id: string, command: ClientCommand): Promise<Client>;
   archive(id: string): Promise<void>;

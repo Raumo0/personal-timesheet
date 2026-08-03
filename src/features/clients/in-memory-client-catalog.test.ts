@@ -18,4 +18,5 @@ test("surfaces configured persistence errors", async () => {
       hourlyRateMinor: null,
     }),
   ).rejects.toBe(error);
+  await expect(catalog.get("client-1")).rejects.toBe(error);
 });

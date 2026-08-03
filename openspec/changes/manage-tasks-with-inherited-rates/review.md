@@ -3,7 +3,8 @@
 ### Scope and inputs
 
 - Review one selected `tasks.md` checkbox at a time against its exact source
-  files, acceptance behavior, focused RED/GREEN command, `proposal.md`, the
+  files, acceptance behavior, focused RED/GREEN command and both recorded
+  outcomes when the checkbox combines RED and GREEN work, `proposal.md`, the
   affected delta specs, and the relevant `design.md` decisions.
 - Inspect the current task-bound diff for scope discipline, task/project/client
   ownership, nullable override and explicit-zero semantics, source resolution,
