@@ -85,12 +85,12 @@
 
 ## 7. Task Screen and Navigation
 
-- [ ] 7.1 RED: add failing screen tests in
+- [x] 7.1 RED: add failing screen tests in
   `src/features/tasks/TasksPage.test.tsx` for active/archived lists, effective
   sources, empty/loading/error states, create/edit/archive flows, breadcrumb
   context, and read-only archived ancestors; run
   `pnpm test -- src/features/tasks/TasksPage.test.tsx`.
-- [ ] 7.2 GREEN/REFACTOR: implement
+- [x] 7.2 GREEN/REFACTOR: implement
   `src/features/tasks/TasksPage.tsx` using the established project screen
   typography, spacing, table density, confirmations, accessible errors, and a
   compact Client → Project → Tasks breadcrumb; rerun the focused test.
