@@ -7,7 +7,7 @@ import {
   type ClientCommand,
   normalizeClientName,
 } from "./client";
-import { rescaleProjectRateOverride } from "../projects/project";
+import { rescaleRateOverride } from "../projects/project";
 import {
   type ClientCatalog,
   ClientCatalogError,
@@ -107,70 +107,71 @@ export class SqliteClientCatalog implements ClientCatalog {
         throw new ClientCatalogError("not-found", "Client was not found");
       }
       const existingClient = clientFromRow(existingRows[0]);
-      const projectRows =
-        existingClient.currencyCode === command.currencyCode
-          ? []
-          : await database.select(
-              `SELECT id, hourly_rate_override_minor FROM projects
-               WHERE client_id = $1 AND hourly_rate_override_minor IS NOT NULL`,
-              [id],
-            );
-      const rescaledOverrides = projectRows.map((row) => {
-        if (
-          typeof row !== "object" ||
-          row === null ||
-          typeof (row as { id?: unknown }).id !== "string" ||
-          typeof (row as { hourly_rate_override_minor?: unknown })
-            .hourly_rate_override_minor !== "number"
-        ) {
-          throw new ClientCatalogError("invalid-data", "Stored project data is invalid");
+      const currencyChanged = existingClient.currencyCode !== command.currencyCode;
+      const projectRows = currencyChanged
+        ? await database.select(
+            `SELECT id, hourly_rate_override_minor FROM projects
+             WHERE client_id = $1 AND hourly_rate_override_minor IS NOT NULL`,
+            [id],
+          )
+        : [];
+      const taskRows = currencyChanged
+        ? await database.select(
+            `SELECT tasks.id, tasks.hourly_rate_override_minor
+             FROM tasks
+             JOIN projects ON projects.id = tasks.project_id
+             WHERE projects.client_id = $1
+               AND tasks.hourly_rate_override_minor IS NOT NULL`,
+            [id],
+          )
+        : [];
+      const rescaledProjectOverrides = this.rescaleOverrides(
+        projectRows,
+        "project",
+        existingClient.currencyCode,
+        command.currencyCode,
+      );
+      const rescaledTaskOverrides = this.rescaleOverrides(
+        taskRows,
+        "task",
+        existingClient.currencyCode,
+        command.currencyCode,
+      );
+
+      if (currencyChanged) await database.execute("BEGIN");
+      try {
+        const result = await database.execute(
+          `UPDATE clients
+           SET name = $1, normalized_name = $2, currency_code = $3,
+               hourly_rate_minor = $4, updated_at = $5
+           WHERE id = $6 AND archived_at IS NULL`,
+          [
+            command.name,
+            normalizeClientName(command.name),
+            command.currencyCode,
+            command.hourlyRateMinor,
+            timestamp,
+            id,
+          ],
+        );
+        if (result.rowsAffected === 0) {
+          throw new ClientCatalogError("not-found", "Client was not found");
         }
-        try {
-          return {
-            id: (row as { id: string }).id,
-            hourlyRateOverrideMinor: rescaleProjectRateOverride(
-              (row as { hourly_rate_override_minor: number }).hourly_rate_override_minor,
-              existingClient.currencyCode,
-              command.currencyCode,
-            ),
-          };
-        } catch (error) {
-          throw new ClientCatalogError(
-            "invalid-data",
-            "Project rates cannot be represented in the new currency",
-            error,
+        for (const override of rescaledProjectOverrides) {
+          await database.execute(
+            "UPDATE projects SET hourly_rate_override_minor = $1 WHERE id = $2",
+            [override.hourlyRateOverrideMinor, override.id],
           );
         }
-      });
-
-      if (rescaledOverrides.length > 0) await database.execute("BEGIN");
-      try {
-      const result = await database.execute(
-        `UPDATE clients
-         SET name = $1, normalized_name = $2, currency_code = $3,
-             hourly_rate_minor = $4, updated_at = $5
-         WHERE id = $6 AND archived_at IS NULL`,
-        [
-          command.name,
-          normalizeClientName(command.name),
-          command.currencyCode,
-          command.hourlyRateMinor,
-          timestamp,
-          id,
-        ],
-      );
-      if (result.rowsAffected === 0) {
-        throw new ClientCatalogError("not-found", "Client was not found");
-      }
-      for (const override of rescaledOverrides) {
-        await database.execute(
-          "UPDATE projects SET hourly_rate_override_minor = $1 WHERE id = $2",
-          [override.hourlyRateOverrideMinor, override.id],
-        );
-      }
-      if (rescaledOverrides.length > 0) await database.execute("COMMIT");
+        for (const override of rescaledTaskOverrides) {
+          await database.execute(
+            "UPDATE tasks SET hourly_rate_override_minor = $1 WHERE id = $2",
+            [override.hourlyRateOverrideMinor, override.id],
+          );
+        }
+        if (currencyChanged) await database.execute("COMMIT");
       } catch (error) {
-        if (rescaledOverrides.length > 0) await database.execute("ROLLBACK");
+        if (currencyChanged) await database.execute("ROLLBACK");
         throw error;
       }
       const rows = await database.select(
@@ -181,6 +182,50 @@ export class SqliteClientCatalog implements ClientCatalog {
         throw new ClientCatalogError("not-found", "Client was not found");
       }
       return clientFromRow(rows[0]);
+    });
+  }
+
+  private rescaleOverrides(
+    rows: unknown[],
+    owner: "project" | "task",
+    fromCurrencyCode: string,
+    toCurrencyCode: string,
+  ): Array<{ id: string; hourlyRateOverrideMinor: number }> {
+    return rows.map((row) => {
+      const stored = row as {
+        id?: unknown;
+        hourly_rate_override_minor?: unknown;
+      };
+      if (
+        typeof row !== "object" ||
+        row === null ||
+        typeof stored.id !== "string" ||
+        stored.id.length === 0 ||
+        typeof stored.hourly_rate_override_minor !== "number" ||
+        !Number.isSafeInteger(stored.hourly_rate_override_minor) ||
+        stored.hourly_rate_override_minor < 0
+      ) {
+        throw new ClientCatalogError(
+          "invalid-data",
+          `Stored ${owner} data is invalid`,
+        );
+      }
+      try {
+        return {
+          id: stored.id,
+          hourlyRateOverrideMinor: rescaleRateOverride(
+            stored.hourly_rate_override_minor,
+            fromCurrencyCode,
+            toCurrencyCode,
+          ) as number,
+        };
+      } catch (error) {
+        throw new ClientCatalogError(
+          "invalid-data",
+          `${owner === "project" ? "Project" : "Task"} rates cannot be represented in the new currency`,
+          error,
+        );
+      }
     });
   }
 

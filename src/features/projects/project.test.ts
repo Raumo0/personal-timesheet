@@ -4,6 +4,7 @@ import {
   normalizeProjectName,
   projectCommandSchema,
   projectRowSchema,
+  rescaleRateOverride,
   rescaleProjectRateOverride,
   resolveProjectRate,
 } from "./project";
@@ -72,6 +73,29 @@ describe("project domain", () => {
 
   test("rejects a currency precision change that would lose non-zero digits", () => {
     expect(() => rescaleProjectRateOverride(12_550, "EUR", "JPY")).toThrow();
+  });
+
+  test.each([
+    ["project", 12_500, "EUR", "JPY", 125],
+    ["task", 125, "JPY", "EUR", 12_500],
+    ["task", 0, "EUR", "JPY", 0],
+  ])(
+    "rescales a %s override with the shared exact rule",
+    (_owner, rate, fromCurrency, toCurrency, expected) => {
+      expect(rescaleRateOverride(rate, fromCurrency, toCurrency)).toBe(expected);
+    },
+  );
+
+  test("rejects overflow through the shared exact override rule", () => {
+    expect(() =>
+      rescaleRateOverride(Number.MAX_SAFE_INTEGER, "JPY", "EUR"),
+    ).toThrow("too large");
+  });
+
+  test("rejects lossy precision through the shared exact override rule", () => {
+    expect(() => rescaleRateOverride(12_550, "EUR", "JPY")).toThrow(
+      "cannot be represented",
+    );
   });
 
   test("rejects invalid persisted project rows", () => {

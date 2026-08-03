@@ -133,6 +133,7 @@ describe("SQLite client catalog", () => {
     database.select
       .mockResolvedValueOnce([row])
       .mockResolvedValueOnce([{ id: "project-1", hourly_rate_override_minor: 12_500 }])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ ...row, currency_code: "JPY", hourly_rate_minor: 125 }]);
     const catalog = new SqliteClientCatalog({
       getDatabase: async () => database,
@@ -175,5 +176,159 @@ describe("SQLite client catalog", () => {
       expect.stringContaining("UPDATE clients"),
       expect.anything(),
     );
+  });
+
+  test("rescales project and task overrides in the same transaction", async () => {
+    const updatedRow = { ...row, currency_code: "JPY", hourly_rate_minor: 125 };
+    const database = createDatabase();
+    database.select.mockImplementation((query: string) => {
+      if (query.includes("FROM projects")) {
+        return Promise.resolve([
+          { id: "project-1", hourly_rate_override_minor: 12_500 },
+          { id: "project-zero", hourly_rate_override_minor: 0 },
+        ]);
+      }
+      if (query.includes("FROM tasks")) {
+        return Promise.resolve([
+          { id: "task-1", hourly_rate_override_minor: 7_500 },
+          { id: "task-zero", hourly_rate_override_minor: 0 },
+        ]);
+      }
+      return Promise.resolve(
+        database.execute.mock.calls.length === 0 ? [row] : [updatedRow],
+      );
+    });
+    const catalog = new SqliteClientCatalog({
+      getDatabase: async () => database,
+      now: () => new Date(now),
+    });
+
+    await catalog.update("client-1", {
+      name: "Acme",
+      currencyCode: "JPY",
+      hourlyRateMinor: 125,
+    });
+
+    expect(database.execute).toHaveBeenNthCalledWith(1, "BEGIN");
+    expect(database.execute).toHaveBeenCalledWith(
+      expect.stringContaining("UPDATE projects"),
+      [125, "project-1"],
+    );
+    expect(database.execute).toHaveBeenCalledWith(
+      expect.stringContaining("UPDATE projects"),
+      [0, "project-zero"],
+    );
+    expect(database.execute).toHaveBeenCalledWith(
+      expect.stringContaining("UPDATE tasks"),
+      [75, "task-1"],
+    );
+    expect(database.execute).toHaveBeenCalledWith(
+      expect.stringContaining("UPDATE tasks"),
+      [0, "task-zero"],
+    );
+    expect(database.execute).toHaveBeenLastCalledWith("COMMIT");
+  });
+
+  test("rejects lossy task precision before any descendant or client update", async () => {
+    const database = createDatabase();
+    database.select.mockImplementation((query: string) => {
+      if (query.includes("FROM projects")) {
+        return Promise.resolve([
+          { id: "project-1", hourly_rate_override_minor: 12_500 },
+        ]);
+      }
+      if (query.includes("FROM tasks")) {
+        return Promise.resolve([
+          { id: "task-1", hourly_rate_override_minor: 7_550 },
+        ]);
+      }
+      return Promise.resolve([row]);
+    });
+    const catalog = new SqliteClientCatalog({ getDatabase: async () => database });
+
+    await expect(
+      catalog.update("client-1", {
+        name: "Acme",
+        currencyCode: "JPY",
+        hourlyRateMinor: 125,
+      }),
+    ).rejects.toMatchObject({ code: "invalid-data" });
+    expect(database.execute).not.toHaveBeenCalled();
+  });
+
+  test("rejects every malformed selected task row before beginning a transaction", async () => {
+    const database = createDatabase();
+    database.select.mockImplementation((query: string) => {
+      if (query.includes("FROM projects")) return Promise.resolve([]);
+      if (query.includes("FROM tasks")) {
+        return Promise.resolve([
+          {
+            ...row,
+            id: "task-1",
+            hourly_rate_override_minor: "7_500",
+          },
+        ]);
+      }
+      return Promise.resolve([row]);
+    });
+    const catalog = new SqliteClientCatalog({ getDatabase: async () => database });
+
+    await expect(
+      catalog.update("client-1", {
+        name: "Acme",
+        currencyCode: "JPY",
+        hourlyRateMinor: 125,
+      }),
+    ).rejects.toMatchObject({ code: "invalid-data" });
+    expect(database.execute).not.toHaveBeenCalled();
+  });
+
+  test("rolls back all descendant and client writes when a task update fails", async () => {
+    const updatedRow = { ...row, currency_code: "JPY", hourly_rate_minor: 125 };
+    const database = createDatabase();
+    database.select.mockImplementation((query: string) => {
+      if (query.includes("FROM projects")) {
+        return Promise.resolve([
+          { id: "project-1", hourly_rate_override_minor: 12_500 },
+        ]);
+      }
+      if (query.includes("FROM tasks")) {
+        return Promise.resolve([
+          { id: "task-1", hourly_rate_override_minor: 7_500 },
+        ]);
+      }
+      return Promise.resolve(
+        database.execute.mock.calls.length === 0 ? [row] : [updatedRow],
+      );
+    });
+    database.execute.mockImplementation((query: string) => {
+      if (query.includes("UPDATE tasks")) {
+        return Promise.reject(new Error("database locked"));
+      }
+      return Promise.resolve({ rowsAffected: 1 });
+    });
+    const catalog = new SqliteClientCatalog({ getDatabase: async () => database });
+
+    await expect(
+      catalog.update("client-1", {
+        name: "Acme",
+        currencyCode: "JPY",
+        hourlyRateMinor: 125,
+      }),
+    ).rejects.toMatchObject({ code: "persistence" });
+    expect(database.execute).toHaveBeenCalledWith(
+      expect.stringContaining("UPDATE clients"),
+      expect.anything(),
+    );
+    expect(database.execute).toHaveBeenCalledWith(
+      expect.stringContaining("UPDATE projects"),
+      [125, "project-1"],
+    );
+    expect(database.execute).toHaveBeenCalledWith(
+      expect.stringContaining("UPDATE tasks"),
+      [75, "task-1"],
+    );
+    expect(database.execute).toHaveBeenLastCalledWith("ROLLBACK");
+    expect(database.execute).not.toHaveBeenCalledWith("COMMIT");
   });
 });

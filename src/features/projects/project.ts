@@ -61,7 +61,7 @@ export function resolveProjectRate(
   return { hourlyRateMinor: null, source: "unset" };
 }
 
-export function rescaleProjectRateOverride(
+export function rescaleRateOverride(
   hourlyRateOverrideMinor: number | null,
   fromCurrencyCode: string,
   toCurrencyCode: string,
@@ -87,6 +87,8 @@ export function rescaleProjectRateOverride(
   }
   return hourlyRateOverrideMinor / divisor;
 }
+
+export const rescaleProjectRateOverride = rescaleRateOverride;
 
 export function projectFromRow(input: unknown): Project {
   const row = projectRowSchema.parse(input);

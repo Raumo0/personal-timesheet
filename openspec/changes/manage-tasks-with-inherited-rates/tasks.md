@@ -61,13 +61,13 @@
 
 ## 5. Atomic Descendant Currency Rescaling
 
-- [ ] 5.1 RED: extend `src/features/projects/project.test.ts` and
+- [x] 5.1 RED: extend `src/features/projects/project.test.ts` and
   `src/features/clients/sqlite-client-catalog.test.ts` with failing cases for a
   shared exact override-rescaling rule, simultaneous project/task conversion,
   explicit zero, overflow, lossy task precision, and rollback without partial
   updates; run
   `pnpm test -- src/features/projects/project.test.ts src/features/clients/sqlite-client-catalog.test.ts`.
-- [ ] 5.2 GREEN/REFACTOR: generalize the existing pure rescaling helper in
+- [x] 5.2 GREEN/REFACTOR: generalize the existing pure rescaling helper in
   `src/features/projects/project.ts` and extend
   `src/features/clients/sqlite-client-catalog.ts` to validate and update every
   project and task override in one transaction; rerun the focused tests.
