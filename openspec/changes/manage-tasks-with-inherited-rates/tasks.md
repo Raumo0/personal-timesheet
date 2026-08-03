@@ -49,14 +49,15 @@
 - [x] 4.2 GREEN/REFACTOR: add migration 3 to `src-tauri/src/database.rs`
   without modifying migrations 1 or 2; rerun
   `cargo test --manifest-path src-tauri/Cargo.toml database`.
-- [ ] 4.3 RED: add the shared task catalog contract and persistence-failure
-  cases in `src/features/tasks/sqlite-task-catalog.test.ts`, including inherited
-  `NULL`, explicit zero, project scoping, ordering, and archival; run
-  `pnpm test -- src/features/tasks/sqlite-task-catalog.test.ts`.
-- [ ] 4.4 GREEN/REFACTOR: implement
+- [x] 4.3 RED/GREEN/REFACTOR: add the shared task catalog contract and
+  persistence-failure cases in
+  `src/features/tasks/sqlite-task-catalog.test.ts`, including inherited `NULL`,
+  explicit zero, project scoping, ordering, and archival, then implement
   `src/features/tasks/sqlite-task-catalog.ts` through the existing
   `src/features/clients/database.ts` connection seam with project-scoped update
-  and archive statements; rerun the focused test.
+  and archive statements. Record the focused test failing before implementation
+  and passing afterward:
+  `pnpm test -- src/features/tasks/sqlite-task-catalog.test.ts`.
 
 ## 5. Atomic Descendant Currency Rescaling
 
