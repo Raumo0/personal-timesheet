@@ -74,12 +74,12 @@
 
 ## 6. Task Form
 
-- [ ] 6.1 RED: add failing form interaction tests in
+- [x] 6.1 RED: add failing form interaction tests in
   `src/features/tasks/TaskForm.test.tsx` for explicit inherit/override choices,
   project and client sources, unset inheritance, validation, mode restoration,
   and zero override; run
   `pnpm test -- src/features/tasks/TaskForm.test.tsx`.
-- [ ] 6.2 GREEN/REFACTOR: implement
+- [x] 6.2 GREEN/REFACTOR: implement
   `src/features/tasks/TaskForm.tsx` with the existing dialog, input, label,
   radio, currency parsing, and rate-formatting patterns; rerun the focused test.
 
