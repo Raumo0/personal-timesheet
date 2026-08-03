@@ -35,6 +35,11 @@ export type LifecyclePlan = Readonly<{
   impactDescription: string;
 }>;
 
+export interface CatalogLifecycle {
+  preview(request: LifecycleRequest): Promise<LifecyclePlan>;
+  apply(plan: LifecyclePlan): Promise<void>;
+}
+
 export type CatalogLifecycleErrorCode =
   | "not-found"
   | "invalid-state"

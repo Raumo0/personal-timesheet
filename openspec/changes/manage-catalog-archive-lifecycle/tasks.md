@@ -5,8 +5,8 @@
 
 ## 2. Lifecycle Interface and In-Memory Adapter
 
-- [ ] 2.1 RED: define shared preview/apply/stale/failure expectations in `src/features/catalog-lifecycle/catalog-lifecycle.contract.ts` and add failing focused tests in `src/features/catalog-lifecycle/in-memory-catalog-lifecycle.test.ts`; run `pnpm test -- src/features/catalog-lifecycle/in-memory-catalog-lifecycle.test.ts`.
-- [ ] 2.2 GREEN/REFACTOR: add the small `CatalogLifecycle` interface in `src/features/catalog-lifecycle/catalog-lifecycle.ts` and implement atomic snapshot replacement in `src/features/catalog-lifecycle/in-memory-catalog-lifecycle.ts`; rerun the focused test.
+- [x] 2.1 RED: define shared preview/apply/stale/failure expectations in `src/features/catalog-lifecycle/catalog-lifecycle.contract.ts` and add failing focused tests in `src/features/catalog-lifecycle/in-memory-catalog-lifecycle.test.ts`; run `pnpm test -- src/features/catalog-lifecycle/in-memory-catalog-lifecycle.test.ts`.
+- [x] 2.2 GREEN/REFACTOR: add the small `CatalogLifecycle` interface in `src/features/catalog-lifecycle/catalog-lifecycle.ts` and implement atomic snapshot replacement in `src/features/catalog-lifecycle/in-memory-catalog-lifecycle.ts`; rerun the focused test.
 
 ## 3. Migration 4 and Backup Compatibility
 
