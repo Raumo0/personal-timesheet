@@ -1,7 +1,7 @@
 ## 1. Lifecycle Planning Rules
 
-- [ ] 1.1 RED: add failing Client, Project, and Task archive/restore plan cases in `src/features/catalog-lifecycle/catalog-lifecycle.test.ts` for downward archive, target-plus-ancestor restore, unchanged siblings, preserved archived descendants, and exact impact descriptions; run `pnpm test -- src/features/catalog-lifecycle/catalog-lifecycle.test.ts`.
-- [ ] 1.2 GREEN/REFACTOR: implement discriminated targets, immutable plans, lifecycle errors, and the pure planner in `src/features/catalog-lifecycle/catalog-lifecycle.ts`; rerun `pnpm test -- src/features/catalog-lifecycle/catalog-lifecycle.test.ts`.
+- [x] 1.1 RED: add failing Client, Project, and Task archive/restore plan cases in `src/features/catalog-lifecycle/catalog-lifecycle.test.ts` for downward archive, target-plus-ancestor restore, unchanged siblings, preserved archived descendants, and exact impact descriptions; run `pnpm test -- src/features/catalog-lifecycle/catalog-lifecycle.test.ts`.
+- [x] 1.2 GREEN/REFACTOR: implement discriminated targets, immutable plans, lifecycle errors, and the pure planner in `src/features/catalog-lifecycle/catalog-lifecycle.ts`; rerun `pnpm test -- src/features/catalog-lifecycle/catalog-lifecycle.test.ts`.
 
 ## 2. Lifecycle Interface and In-Memory Adapter
 
