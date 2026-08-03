@@ -423,6 +423,16 @@ impl BackupService {
             .map_err(|_| BackupError::MissingApplicationSchema)?;
         }
 
+        if data_version >= 3 {
+            sqlx::query(
+                "SELECT id, project_id, name, normalized_name, hourly_rate_override_minor, \
+                 created_at, updated_at, archived_at FROM tasks LIMIT 0",
+            )
+            .fetch_optional(&mut connection)
+            .await
+            .map_err(|_| BackupError::MissingApplicationSchema)?;
+        }
+
         connection
             .close()
             .await
@@ -652,6 +662,26 @@ mod tests {
         .expect("projects table should be created");
     }
 
+    async fn add_valid_tasks_table(connection: &mut SqliteConnection) {
+        sqlx::query(
+            r#"
+            CREATE TABLE tasks (
+                id TEXT PRIMARY KEY NOT NULL,
+                project_id TEXT NOT NULL REFERENCES projects(id),
+                name TEXT NOT NULL,
+                normalized_name TEXT NOT NULL,
+                hourly_rate_override_minor INTEGER,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                archived_at TEXT
+            )
+            "#,
+        )
+        .execute(&mut *connection)
+        .await
+        .expect("tasks table should be created");
+    }
+
     #[test]
     fn create_produces_a_complete_consistent_snapshot() {
         tauri::async_runtime::block_on(async {
@@ -853,6 +883,102 @@ mod tests {
     }
 
     #[test]
+    fn validate_accepts_a_migration_three_backup_with_the_task_schema() {
+        tauri::async_runtime::block_on(async {
+            let directory = TempDir::new().expect("temporary directory should be created");
+            let paths = BackupPaths::from_config_dir(directory.path());
+            let selected = directory.path().join("tasks.ptimesheet-backup");
+            create_valid_backup(&selected, 3, &["Acme"]).await;
+            let mut backup = connect(&selected, false).await;
+            add_valid_projects_table(&mut backup).await;
+            add_valid_tasks_table(&mut backup).await;
+            backup.close().await.expect("backup should close");
+
+            let preview = BackupService::new(paths.clone())
+                .stage_and_validate(&selected)
+                .await
+                .expect("migration three backup should be staged");
+
+            assert_eq!(preview.data_version, 3);
+            assert_eq!(preview.client_count, 1);
+            assert!(paths.pending_restore.exists());
+        });
+    }
+
+    #[test]
+    fn validate_keeps_migration_one_and_two_backups_compatible() {
+        tauri::async_runtime::block_on(async {
+            for version in [1, 2] {
+                let directory = TempDir::new().expect("temporary directory should be created");
+                let paths = BackupPaths::from_config_dir(directory.path());
+                let selected = directory
+                    .path()
+                    .join(format!("migration-{version}.ptimesheet-backup"));
+                create_valid_backup(&selected, version, &["Acme"]).await;
+                if version == 2 {
+                    let mut backup = connect(&selected, false).await;
+                    add_valid_projects_table(&mut backup).await;
+                    backup.close().await.expect("backup should close");
+                }
+
+                let preview = BackupService::new(paths.clone())
+                    .stage_and_validate(&selected)
+                    .await
+                    .expect("older compatible backup should be staged");
+
+                assert_eq!(preview.data_version, version);
+                assert!(paths.pending_restore.exists());
+            }
+        });
+    }
+
+    #[test]
+    fn validate_rejects_a_migration_three_backup_without_the_task_schema() {
+        tauri::async_runtime::block_on(async {
+            let directory = TempDir::new().expect("temporary directory should be created");
+            let paths = BackupPaths::from_config_dir(directory.path());
+            let selected = directory.path().join("missing-tasks.ptimesheet-backup");
+            create_valid_backup(&selected, 3, &["Acme"]).await;
+            let mut backup = connect(&selected, false).await;
+            add_valid_projects_table(&mut backup).await;
+            backup.close().await.expect("backup should close");
+
+            let result = BackupService::new(paths.clone())
+                .stage_and_validate(&selected)
+                .await;
+
+            assert!(matches!(result, Err(BackupError::MissingApplicationSchema)));
+            assert!(!paths.pending_restore.exists());
+        });
+    }
+
+    #[test]
+    fn validate_rejects_a_migration_three_backup_with_a_malformed_task_schema() {
+        tauri::async_runtime::block_on(async {
+            let directory = TempDir::new().expect("temporary directory should be created");
+            let paths = BackupPaths::from_config_dir(directory.path());
+            let selected = directory.path().join("malformed-tasks.ptimesheet-backup");
+            create_valid_backup(&selected, 3, &["Acme"]).await;
+            let mut backup = connect(&selected, false).await;
+            add_valid_projects_table(&mut backup).await;
+            sqlx::query(
+                "CREATE TABLE tasks (id TEXT PRIMARY KEY, project_id TEXT, name TEXT)",
+            )
+            .execute(&mut backup)
+            .await
+            .expect("malformed tasks table should be created");
+            backup.close().await.expect("backup should close");
+
+            let result = BackupService::new(paths.clone())
+                .stage_and_validate(&selected)
+                .await;
+
+            assert!(matches!(result, Err(BackupError::MissingApplicationSchema)));
+            assert!(!paths.pending_restore.exists());
+        });
+    }
+
+    #[test]
     fn validate_rejects_damaged_sqlite_and_removes_the_staged_file() {
         tauri::async_runtime::block_on(async {
             let directory = TempDir::new().expect("temporary directory should be created");
@@ -901,7 +1027,7 @@ mod tests {
             let directory = TempDir::new().expect("temporary directory should be created");
             let paths = BackupPaths::from_config_dir(directory.path());
             let selected = directory.path().join("future.ptimesheet-backup");
-            create_valid_backup(&selected, 3, &["Future client"]).await;
+            create_valid_backup(&selected, 4, &["Future client"]).await;
 
             let result = BackupService::new(paths.clone())
                 .stage_and_validate(&selected)
@@ -910,8 +1036,8 @@ mod tests {
             assert!(matches!(
                 result,
                 Err(BackupError::UnsupportedNewerVersion {
-                    backup_version: 3,
-                    supported_version: 2,
+                    backup_version: 4,
+                    supported_version: 3,
                 })
             ));
             assert!(!paths.pending_restore.exists());

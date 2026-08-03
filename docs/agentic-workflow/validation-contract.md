@@ -16,6 +16,7 @@ skill, CI workflow, or separate Validation Manifest.
 | 10 | target-contracts | always | yes | 180 | `python3 -m unittest discover -s tests -v` |
 | 20 | handoff-package | path:tools/architecture_handoff/tests | yes | 300 | `python3 -m unittest discover -s tools/architecture_handoff/tests -v` |
 | 30 | openspec-strict | path:openspec | yes | 120 | `openspec validate --all --strict --no-interactive` |
+| 40 | rust-backup | path:src-tauri | yes | 300 | `cargo test --manifest-path src-tauri/Cargo.toml backup` |
 
 ## Applicability
 

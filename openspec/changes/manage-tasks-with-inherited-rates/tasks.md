@@ -94,12 +94,12 @@
   `src/features/tasks/TasksPage.tsx` using the established project screen
   typography, spacing, table density, confirmations, accessible errors, and a
   compact Client → Project → Tasks breadcrumb; rerun the focused test.
-- [ ] 7.3 RED: extend `src/features/projects/ProjectsPage.test.tsx` and
+- [x] 7.3 RED: extend `src/features/projects/ProjectsPage.test.tsx` and
   `src/app/AppShell.test.tsx` with failing project-link, task deep-link,
   refresh-context, missing-context, return-navigation, lazy-loading, and active
   Clients-navigation cases; run
   `pnpm test -- src/features/projects/ProjectsPage.test.tsx src/app/AppShell.test.tsx`.
-- [ ] 7.4 GREEN/REFACTOR: link project names in
+- [x] 7.4 GREEN/REFACTOR: link project names in
   `src/features/projects/ProjectsPage.tsx`, add the
   `/clients/:clientId/projects/:projectId/tasks` route and catalog lookups in
   `src/app/AppShell.tsx`, and inject `SqliteTaskCatalog` from `src/App.tsx`;
@@ -107,10 +107,10 @@
 
 ## 8. Backup Compatibility
 
-- [ ] 8.1 RED: extend `src-tauri/src/backup.rs` tests for valid migration-3
+- [x] 8.1 RED: extend `src-tauri/src/backup.rs` tests for valid migration-3
   task schemas, migration-1 and migration-2 compatibility, and malformed task
   schema rejection; run `cargo test --manifest-path src-tauri/Cargo.toml backup`.
-- [ ] 8.2 GREEN/REFACTOR: update migration-aware task schema validation in
+- [x] 8.2 GREEN/REFACTOR: update migration-aware task schema validation in
   `src-tauri/src/backup.rs` without changing the backup/restore interaction;
   rerun `cargo test --manifest-path src-tauri/Cargo.toml backup`.
 
