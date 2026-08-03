@@ -423,7 +423,7 @@ impl BackupService {
             .map_err(|_| BackupError::MissingApplicationSchema)?;
         }
 
-        if data_version >= 3 {
+        if matches!(data_version, 3 | 4) {
             sqlx::query(
                 "SELECT id, project_id, name, normalized_name, hourly_rate_override_minor, \
                  created_at, updated_at, archived_at FROM tasks LIMIT 0",
@@ -906,18 +906,44 @@ mod tests {
     }
 
     #[test]
-    fn validate_keeps_migration_one_and_two_backups_compatible() {
+    fn validate_accepts_a_migration_four_backup_with_the_normalized_catalog_schema() {
         tauri::async_runtime::block_on(async {
-            for version in [1, 2] {
+            let directory = TempDir::new().expect("temporary directory should be created");
+            let paths = BackupPaths::from_config_dir(directory.path());
+            let selected = directory.path().join("lifecycle.ptimesheet-backup");
+            create_valid_backup(&selected, 4, &["Acme"]).await;
+            let mut backup = connect(&selected, false).await;
+            add_valid_projects_table(&mut backup).await;
+            add_valid_tasks_table(&mut backup).await;
+            backup.close().await.expect("backup should close");
+
+            let preview = BackupService::new(paths.clone())
+                .stage_and_validate(&selected)
+                .await
+                .expect("migration four backup should be staged");
+
+            assert_eq!(preview.data_version, 4);
+            assert_eq!(preview.client_count, 1);
+            assert!(paths.pending_restore.exists());
+        });
+    }
+
+    #[test]
+    fn validate_keeps_migration_one_through_three_backups_compatible() {
+        tauri::async_runtime::block_on(async {
+            for version in [1, 2, 3] {
                 let directory = TempDir::new().expect("temporary directory should be created");
                 let paths = BackupPaths::from_config_dir(directory.path());
                 let selected = directory
                     .path()
                     .join(format!("migration-{version}.ptimesheet-backup"));
                 create_valid_backup(&selected, version, &["Acme"]).await;
-                if version == 2 {
+                if version >= 2 {
                     let mut backup = connect(&selected, false).await;
                     add_valid_projects_table(&mut backup).await;
+                    if version >= 3 {
+                        add_valid_tasks_table(&mut backup).await;
+                    }
                     backup.close().await.expect("backup should close");
                 }
 
@@ -1027,7 +1053,7 @@ mod tests {
             let directory = TempDir::new().expect("temporary directory should be created");
             let paths = BackupPaths::from_config_dir(directory.path());
             let selected = directory.path().join("future.ptimesheet-backup");
-            create_valid_backup(&selected, 4, &["Future client"]).await;
+            create_valid_backup(&selected, 5, &["Future client"]).await;
 
             let result = BackupService::new(paths.clone())
                 .stage_and_validate(&selected)
@@ -1036,8 +1062,8 @@ mod tests {
             assert!(matches!(
                 result,
                 Err(BackupError::UnsupportedNewerVersion {
-                    backup_version: 4,
-                    supported_version: 3,
+                    backup_version: 5,
+                    supported_version: 4,
                 })
             ));
             assert!(!paths.pending_restore.exists());

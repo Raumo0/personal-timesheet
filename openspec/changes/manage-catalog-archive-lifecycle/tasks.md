@@ -10,10 +10,10 @@
 
 ## 3. Migration 4 and Backup Compatibility
 
-- [ ] 3.1 RED: extend `src-tauri/src/database.rs` tests for migration 4 normalization of active Projects beneath archived Clients and active Tasks beneath archived Projects or Clients while preserving existing archive timestamps; run `cargo test --manifest-path src-tauri/Cargo.toml database`.
-- [ ] 3.2 GREEN/REFACTOR: add migration 4 to `src-tauri/src/database.rs` without modifying migrations 1–3; rerun `cargo test --manifest-path src-tauri/Cargo.toml database`.
-- [ ] 3.3 RED: extend `src-tauri/src/backup.rs` tests for valid migration-4 backups plus migration-1 through migration-3 compatibility; run `cargo test --manifest-path src-tauri/Cargo.toml backup`.
-- [ ] 3.4 GREEN/REFACTOR: update migration-aware compatibility in `src-tauri/src/backup.rs` without changing backup/restore interactions; rerun `cargo test --manifest-path src-tauri/Cargo.toml backup`.
+- [x] 3.1 RED: extend `src-tauri/src/database.rs` tests for migration 4 normalization of active Projects beneath archived Clients and active Tasks beneath archived Projects or Clients while preserving existing archive timestamps; run `cargo test --manifest-path src-tauri/Cargo.toml database`.
+- [x] 3.2 GREEN/REFACTOR: add migration 4 to `src-tauri/src/database.rs` without modifying migrations 1–3; rerun `cargo test --manifest-path src-tauri/Cargo.toml database`.
+- [x] 3.3 REGRESSION: extend `src-tauri/src/backup.rs` tests for valid migration-4 backups plus migration-1 through migration-3 compatibility.
+- [x] 3.4 COMPATIBILITY/REFACTOR: update migration-aware compatibility and future-version expectations without changing backup/restore interactions; run `cargo test --manifest-path src-tauri/Cargo.toml backup`.
 
 ## 4. Atomic SQLite Lifecycle
 
