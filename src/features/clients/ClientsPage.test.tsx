@@ -3,12 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, test } from "vitest";
 import { vi } from "vitest";
 
+import { CatalogLifecycleError } from "../catalog-lifecycle/catalog-lifecycle";
+import { InMemoryCatalogLifecycle } from "../catalog-lifecycle/in-memory-catalog-lifecycle";
 import type { Client } from "./client";
 import type { ClientCatalog } from "./client-catalog";
 import { InMemoryClientCatalog } from "./in-memory-client-catalog";
 import { ClientsPage } from "./ClientsPage";
 
 const timestamp = "2026-07-31T10:00:00.000Z";
+const appliedAt = "2026-08-03T12:00:00.000Z";
 
 function client(overrides: Partial<Client> = {}): Client {
   return {
@@ -21,6 +24,59 @@ function client(overrides: Partial<Client> = {}): Client {
     archivedAt: null,
     ...overrides,
   };
+}
+
+function lifecycleHarness(options: {
+  archived?: boolean;
+  applyFailure?: () => unknown | undefined;
+} = {}) {
+  const archivedAt = options.archived ? timestamp : null;
+  const lifecycle = new InMemoryCatalogLifecycle({
+    hierarchy: {
+      clients: [client({ archivedAt })],
+      projects: [
+        {
+          id: "project-1",
+          clientId: "client-1",
+          name: "Website",
+          hourlyRateOverrideMinor: null,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          archivedAt,
+        },
+      ],
+      tasks: [
+        {
+          id: "task-1",
+          projectId: "project-1",
+          name: "Research",
+          hourlyRateOverrideMinor: null,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          archivedAt,
+        },
+      ],
+    },
+    now: () => new Date(appliedAt),
+    applyFailure: options.applyFailure,
+  });
+  const catalog: ClientCatalog = {
+    list: async (filter) =>
+      lifecycle
+        .snapshot()
+        .clients.filter((candidate) =>
+          filter === "active"
+            ? candidate.archivedAt === null
+            : candidate.archivedAt !== null,
+        ),
+    get: async () => lifecycle.snapshot().clients[0],
+    create: async () => client(),
+    update: async () => client(),
+    archive: async () => {
+      throw new Error("Direct catalog archive must not be used");
+    },
+  };
+  return { catalog, lifecycle };
 }
 
 afterEach(cleanup);
@@ -218,5 +274,128 @@ describe("Clients page", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("not saved");
     expect(nameInput).toHaveValue("Acme");
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  test("describes the complete Client archive scope before confirmation", async () => {
+    const user = userEvent.setup();
+    const { catalog, lifecycle } = lifecycleHarness();
+    render(<ClientsPage catalog={catalog} lifecycle={lifecycle} />);
+    await screen.findByText("Acme Studio");
+
+    await user.click(screen.getByRole("button", { name: "Archive Acme Studio" }));
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent("Archive Acme Studio?");
+    expect(dialog).toHaveTextContent(
+      "Archive Acme Studio and every Project and Task beneath it (1 Project, 1 Task).",
+    );
+  });
+
+  test("cancels archive without changing the hierarchy", async () => {
+    const user = userEvent.setup();
+    const { catalog, lifecycle } = lifecycleHarness();
+    render(<ClientsPage catalog={catalog} lifecycle={lifecycle} />);
+    await screen.findByText("Acme Studio");
+
+    await user.click(screen.getByRole("button", { name: "Archive Acme Studio" }));
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+    expect(screen.getByText("Acme Studio")).toBeInTheDocument();
+    expect(lifecycle.snapshot().clients[0].archivedAt).toBeNull();
+    expect(lifecycle.snapshot().projects[0].archivedAt).toBeNull();
+    expect(lifecycle.snapshot().tasks[0].archivedAt).toBeNull();
+  });
+
+  test("restores an archived Client while its descendants remain archived", async () => {
+    const user = userEvent.setup();
+    const { catalog, lifecycle } = lifecycleHarness({ archived: true });
+    render(<ClientsPage catalog={catalog} lifecycle={lifecycle} />);
+
+    await user.click(screen.getByRole("button", { name: "Archived" }));
+    await screen.findByText("Acme Studio");
+    await user.click(screen.getByRole("button", { name: "Restore Acme Studio" }));
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent(
+      "Restore Acme Studio only. Archived Projects and Tasks remain archived.",
+    );
+    await user.click(screen.getByRole("button", { name: "Restore client" }));
+
+    expect(await screen.findByRole("heading", { name: "No archived clients" })).toBeInTheDocument();
+    expect(lifecycle.snapshot().clients[0].archivedAt).toBeNull();
+    expect(lifecycle.snapshot().projects[0].archivedAt).toBe(timestamp);
+    expect(lifecycle.snapshot().tasks[0].archivedAt).toBe(timestamp);
+  });
+
+  test("restores focus to the initiating action when confirmation is cancelled", async () => {
+    const user = userEvent.setup();
+    const { catalog, lifecycle } = lifecycleHarness();
+    render(<ClientsPage catalog={catalog} lifecycle={lifecycle} />);
+    const archive = await screen.findByRole("button", {
+      name: "Archive Acme Studio",
+    });
+
+    await user.click(archive);
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+    expect(archive).toHaveFocus();
+  });
+
+  test("keeps a stale-plan error visible and Retry requests a fresh preview", async () => {
+    const user = userEvent.setup();
+    const { catalog, lifecycle } = lifecycleHarness();
+    render(<ClientsPage catalog={catalog} lifecycle={lifecycle} />);
+    await screen.findByText("Acme Studio");
+
+    await user.click(screen.getByRole("button", { name: "Archive Acme Studio" }));
+    await screen.findByRole("alertdialog");
+    const changed = lifecycle.snapshot();
+    lifecycle.replaceSnapshot({
+      ...changed,
+      tasks: [
+        ...changed.tasks,
+        {
+          ...changed.tasks[0],
+          id: "task-2",
+          name: "Delivery",
+        },
+      ],
+    });
+    await user.click(screen.getByRole("button", { name: "Archive client" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/stale/i);
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent(
+      "1 Project, 2 Tasks",
+    );
+  });
+
+  test("keeps a persistence error visible and Retry previews before applying again", async () => {
+    let fail = true;
+    const user = userEvent.setup();
+    const { catalog, lifecycle } = lifecycleHarness({
+      applyFailure: () => {
+        if (!fail) return undefined;
+        fail = false;
+        return new CatalogLifecycleError("persistence", "The hierarchy was not saved");
+      },
+    });
+    render(<ClientsPage catalog={catalog} lifecycle={lifecycle} />);
+    await screen.findByText("Acme Studio");
+
+    await user.click(screen.getByRole("button", { name: "Archive Acme Studio" }));
+    await user.click(await screen.findByRole("button", { name: "Archive client" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("not saved");
+    expect(screen.getByText("Acme Studio")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent(
+      "Archive Acme Studio and every Project and Task beneath it",
+    );
+    await user.click(screen.getByRole("button", { name: "Archive client" }));
+
+    expect(await screen.findByRole("heading", { name: "No clients yet" })).toBeInTheDocument();
   });
 });

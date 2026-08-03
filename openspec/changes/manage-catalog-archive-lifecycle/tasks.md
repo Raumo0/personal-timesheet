@@ -17,13 +17,13 @@
 
 ## 4. Atomic SQLite Lifecycle
 
-- [ ] 4.1 RED: add the shared lifecycle contract and focused SQLite cases in `src/features/catalog-lifecycle/sqlite-catalog-lifecycle.test.ts` for cascade archive, ancestor restore, preserved timestamps, stale plans, rollback, ordering, and persistence errors; run `pnpm test -- src/features/catalog-lifecycle/sqlite-catalog-lifecycle.test.ts`.
-- [ ] 4.2 GREEN/REFACTOR: implement bounded hierarchy loading and one-transaction plan application in `src/features/catalog-lifecycle/sqlite-catalog-lifecycle.ts` through `src/features/clients/database.ts`; rerun the focused test.
+- [x] 4.1 RED: add the shared lifecycle contract and focused SQLite cases in `src/features/catalog-lifecycle/sqlite-catalog-lifecycle.test.ts` for cascade archive, ancestor restore, preserved timestamps, stale plans, rollback, ordering, and persistence errors; run `pnpm test -- src/features/catalog-lifecycle/sqlite-catalog-lifecycle.test.ts`.
+- [x] 4.2 GREEN/REFACTOR: implement bounded hierarchy loading and one-transaction plan application in `src/features/catalog-lifecycle/sqlite-catalog-lifecycle.ts` through `src/features/clients/database.ts`; rerun the focused test.
 
 ## 5. Client Archive and Restore Interaction
 
-- [ ] 5.1 RED: extend `src/features/clients/ClientsPage.test.tsx` with failing archive-scope, archived-row Restore, target-only restore, cancel, stale-plan, persistent error, focus, and Retry cases; run `pnpm test -- src/features/clients/ClientsPage.test.tsx`.
-- [ ] 5.2 GREEN/REFACTOR: route Client lifecycle actions through `CatalogLifecycle` in `src/features/clients/ClientsPage.tsx`, extending the existing Active/Archived table, alert dialog, and error region; rerun the focused test.
+- [x] 5.1 RED: extend `src/features/clients/ClientsPage.test.tsx` with failing archive-scope, archived-row Restore, target-only restore, cancel, stale-plan, persistent error, focus, and Retry cases; run `pnpm test -- src/features/clients/ClientsPage.test.tsx`.
+- [x] 5.2 GREEN/REFACTOR: route Client lifecycle actions through `CatalogLifecycle` in `src/features/clients/ClientsPage.tsx`, extending the existing Active/Archived table, alert dialog, and error region; rerun the focused test.
 
 ## 6. Project Archive and Restore Interaction
 

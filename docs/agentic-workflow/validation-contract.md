@@ -18,6 +18,8 @@ skill, CI workflow, or separate Validation Manifest.
 | 30 | openspec-strict | path:openspec | yes | 120 | `openspec validate --all --strict --no-interactive` |
 | 40 | rust-backup | path:src-tauri | yes | 300 | `cargo test --manifest-path src-tauri/Cargo.toml backup` |
 | 50 | catalog-lifecycle-database | path:openspec/changes/manage-catalog-archive-lifecycle | yes | 300 | `python3 tools/agentic_workflow/validate_catalog_lifecycle_database.py` |
+| 60 | catalog-lifecycle-sqlite | path:openspec/changes/manage-catalog-archive-lifecycle | yes | 300 | `python3 tools/agentic_workflow/validate_catalog_lifecycle_sqlite.py` |
+| 70 | catalog-lifecycle-clients | path:openspec/changes/manage-catalog-archive-lifecycle | yes | 300 | `python3 tools/agentic_workflow/validate_catalog_lifecycle_clients.py` |
 
 ## Applicability
 

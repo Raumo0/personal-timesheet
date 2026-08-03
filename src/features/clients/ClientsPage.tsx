@@ -23,20 +23,34 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
+import type {
+  CatalogLifecycle,
+  LifecycleOperation,
+  LifecyclePlan,
+  LifecycleRequest,
+} from "../catalog-lifecycle/catalog-lifecycle";
 import type { Client, ClientCommand } from "./client";
 import { formatRate } from "./client";
 import type { ClientCatalog, ClientList } from "./client-catalog";
 import { ClientForm } from "./ClientForm";
 
-export function ClientsPage({ catalog }: { catalog: ClientCatalog }) {
+interface ClientsPageProps {
+  catalog: ClientCatalog;
+  lifecycle?: CatalogLifecycle;
+}
+
+export function ClientsPage({ catalog, lifecycle }: ClientsPageProps) {
   const [filter, setFilter] = useState<ClientList>("active");
   const [clients, setClients] = useState<Client[]>([]);
   const [status, setStatus] = useState<"loading" | "loaded" | "error">("loading");
   const [formOpen, setFormOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client>();
   const [archiveClient, setArchiveClient] = useState<Client>();
+  const [lifecyclePlan, setLifecyclePlan] = useState<LifecyclePlan>();
+  const [retryRequest, setRetryRequest] = useState<LifecycleRequest>();
   const [mutationError, setMutationError] = useState<string>();
   const loadRequest = useRef(0);
+  const lifecycleInitiator = useRef<HTMLButtonElement | null>(null);
 
   const loadClients = useCallback(async () => {
     const request = ++loadRequest.current;
@@ -69,15 +83,77 @@ export function ClientsPage({ catalog }: { catalog: ClientCatalog }) {
     if (!archiveClient) return;
     setMutationError(undefined);
     try {
-      await catalog.archive(archiveClient.id);
+      if (lifecycle && lifecyclePlan) {
+        await lifecycle.apply(lifecyclePlan);
+      } else {
+        await catalog.archive(archiveClient.id);
+      }
       setArchiveClient(undefined);
+      setLifecyclePlan(undefined);
+      setRetryRequest(undefined);
       await loadClients();
     } catch (error) {
       setMutationError(
-        error instanceof Error ? error.message : "The client was not archived",
+        error instanceof Error
+          ? error.message
+          : lifecyclePlan?.operation === "restore"
+            ? "The client was not restored"
+            : "The client was not archived",
       );
+      if (lifecyclePlan) {
+        setRetryRequest({
+          operation: lifecyclePlan.operation,
+          target: lifecyclePlan.target,
+        });
+      }
       setArchiveClient(undefined);
+      setLifecyclePlan(undefined);
+      restoreLifecycleFocus();
     }
+  }
+
+  async function requestLifecycle(
+    targetClient: Client,
+    operation: LifecycleOperation,
+    initiator?: HTMLButtonElement,
+  ) {
+    if (!lifecycle) {
+      setArchiveClient(targetClient);
+      return;
+    }
+    if (initiator) lifecycleInitiator.current = initiator;
+    const request: LifecycleRequest = {
+      operation,
+      target: { kind: "client", id: targetClient.id },
+    };
+    setMutationError(undefined);
+    try {
+      const plan = await lifecycle.preview(request);
+      setLifecyclePlan(plan);
+      setArchiveClient(targetClient);
+      setRetryRequest(undefined);
+    } catch (error) {
+      setMutationError(
+        error instanceof Error
+          ? error.message
+          : "The lifecycle change could not be prepared",
+      );
+      setRetryRequest(request);
+      restoreLifecycleFocus();
+    }
+  }
+
+  async function retryLifecycle() {
+    if (!lifecycle || !retryRequest) return;
+    const targetClient = clients.find(
+      (candidate) => candidate.id === retryRequest.target.id,
+    );
+    if (!targetClient) return;
+    await requestLifecycle(targetClient, retryRequest.operation);
+  }
+
+  function restoreLifecycleFocus() {
+    queueMicrotask(() => lifecycleInitiator.current?.focus());
   }
 
   function openCreateForm() {
@@ -130,8 +206,21 @@ export function ClientsPage({ catalog }: { catalog: ClientCatalog }) {
         </div>
 
         {mutationError && (
-          <div className="border-b bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
-            {mutationError}
+          <div
+            className="flex items-center justify-between gap-4 border-b bg-destructive/10 px-4 py-3 text-sm text-destructive"
+            role="alert"
+          >
+            <span>{mutationError}</span>
+            {retryRequest && (
+              <Button
+                onClick={() => void retryLifecycle()}
+                size="sm"
+                variant="outline"
+              >
+                <RotateCcw aria-hidden="true" />
+                Retry
+              </Button>
+            )}
           </div>
         )}
 
@@ -182,11 +271,9 @@ export function ClientsPage({ catalog }: { catalog: ClientCatalog }) {
                 <TableHead className="h-11 px-4">Client</TableHead>
                 <TableHead className="h-11 w-32">Currency</TableHead>
                 <TableHead className="h-11 w-48 pr-4 text-right">Default hourly rate</TableHead>
-                {filter === "active" && (
-                  <TableHead className="h-11 w-24 pr-4">
-                    <span className="sr-only">Actions</span>
-                  </TableHead>
-                )}
+                <TableHead className="h-11 w-24 pr-4">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -203,31 +290,54 @@ export function ClientsPage({ catalog }: { catalog: ClientCatalog }) {
                     <TableCell className="py-3 pr-4 text-right font-medium tabular-nums">
                       {rate ?? <span className="font-normal text-muted-foreground">Not set</span>}
                     </TableCell>
-                    {filter === "active" && (
-                      <TableCell className="py-3 pr-4">
-                        <div className="flex justify-end gap-1">
+                    <TableCell className="py-3 pr-4">
+                      <div className="flex justify-end gap-1">
+                        {filter === "active" ? (
+                          <>
+                            <Button
+                              aria-label={`Edit ${client.name}`}
+                              onClick={() => {
+                                setEditingClient(client);
+                                setFormOpen(true);
+                              }}
+                              size="icon-sm"
+                              variant="ghost"
+                            >
+                              <Pencil aria-hidden="true" />
+                            </Button>
+                            <Button
+                              aria-label={`Archive ${client.name}`}
+                              onClick={(event) =>
+                                void requestLifecycle(
+                                  client,
+                                  "archive",
+                                  event.currentTarget,
+                                )
+                              }
+                              size="icon-sm"
+                              variant="ghost"
+                            >
+                              <Archive aria-hidden="true" />
+                            </Button>
+                          </>
+                        ) : lifecycle ? (
                           <Button
-                            aria-label={`Edit ${client.name}`}
-                            onClick={() => {
-                              setEditingClient(client);
-                              setFormOpen(true);
-                            }}
+                            aria-label={`Restore ${client.name}`}
+                            onClick={(event) =>
+                              void requestLifecycle(
+                                client,
+                                "restore",
+                                event.currentTarget,
+                              )
+                            }
                             size="icon-sm"
                             variant="ghost"
                           >
-                            <Pencil aria-hidden="true" />
+                            <RotateCcw aria-hidden="true" />
                           </Button>
-                          <Button
-                            aria-label={`Archive ${client.name}`}
-                            onClick={() => setArchiveClient(client)}
-                            size="icon-sm"
-                            variant="ghost"
-                          >
-                            <Archive aria-hidden="true" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    )}
+                        ) : null}
+                      </div>
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -249,20 +359,35 @@ export function ClientsPage({ catalog }: { catalog: ClientCatalog }) {
       <AlertDialog
         open={Boolean(archiveClient)}
         onOpenChange={(open) => {
-          if (!open) setArchiveClient(undefined);
+          if (!open) {
+            setArchiveClient(undefined);
+            setLifecyclePlan(undefined);
+            restoreLifecycleFocus();
+          }
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Archive {archiveClient?.name}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {lifecyclePlan?.operation === "restore" ? "Restore" : "Archive"}{" "}
+              {archiveClient?.name}?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              The client will leave the active list but remain available in archived records.
+              {lifecyclePlan?.impactDescription ??
+                "The client will leave the active list but remain available in archived records."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void confirmArchive()} variant="destructive">
-              Archive client
+            <AlertDialogAction
+              onClick={() => void confirmArchive()}
+              variant={
+                lifecyclePlan?.operation === "restore" ? "default" : "destructive"
+              }
+            >
+              {lifecyclePlan?.operation === "restore"
+                ? "Restore client"
+                : "Archive client"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
