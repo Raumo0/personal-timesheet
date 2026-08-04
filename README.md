@@ -124,7 +124,9 @@ change. Behavioral fixes still use test-driven development.
 ## Project Skills
 
 Project-local agent skills are stored in `.agents/skills/` and locked in
-`skills-lock.json`.
+`skills-lock.json`. The workflow assumes Codex, either the desktop application
+or Codex CLI. The `skills` CLI is invoked through `npx` to inspect and restore
+the locked skills:
 
 ```bash
 npx skills list
@@ -134,6 +136,20 @@ npx skills experimental_install
 Review each skill and its bundled scripts before installing or updating it.
 Use `npx skills update <skill-name>` only when an update is intended.
 Repository-wide working rules are defined in [`AGENTS.md`](AGENTS.md).
+
+OpenSpec CLI is already installed as a project dependency and should be run
+through the `pnpm spec` scripts or `pnpm exec openspec`; no global installation
+is required. The optional `opensrc` skill additionally requires the `opensrc`
+CLI on `PATH`:
+
+```bash
+pnpm add --global opensrc
+opensrc --version
+```
+
+`opensrc` downloads dependency sources into the user-level `~/.opensrc/`
+cache. Keep that cache outside the repository and treat fetched code as
+read-only reference material.
 
 ## Project Structure
 
