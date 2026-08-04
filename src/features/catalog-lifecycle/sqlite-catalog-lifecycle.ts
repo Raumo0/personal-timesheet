@@ -1,6 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 
-import { getClientDatabase, type SqlDatabase } from "../clients/database";
+import {
+  getClientDatabase,
+  type SqlReadDatabase,
+} from "@/infrastructure/sqlite/plugin-sql-adapter";
+
 import {
   CatalogLifecycleError,
   planCatalogLifecycle,
@@ -11,7 +15,7 @@ import {
 } from "./catalog-lifecycle";
 
 interface SqliteCatalogLifecycleOptions {
-  getDatabase?: () => Promise<SqlDatabase>;
+  getDatabase?: () => Promise<SqlReadDatabase>;
   invoke?: Invoke;
 }
 
@@ -28,7 +32,7 @@ interface HierarchyQuery {
 const placeholderTimestamp = "1970-01-01T00:00:00.000Z";
 
 export class SqliteCatalogLifecycle implements CatalogLifecycle {
-  private readonly getDatabase: () => Promise<SqlDatabase>;
+  private readonly getDatabase: () => Promise<SqlReadDatabase>;
   private readonly invoke: Invoke;
 
   constructor(options: SqliteCatalogLifecycleOptions = {}) {
@@ -56,7 +60,7 @@ export class SqliteCatalogLifecycle implements CatalogLifecycle {
     }
   }
 
-  private async openDatabase(): Promise<SqlDatabase> {
+  private async openDatabase(): Promise<SqlReadDatabase> {
     try {
       return await this.getDatabase();
     } catch (cause) {
@@ -79,7 +83,7 @@ function errorMessage(cause: unknown): string {
 }
 
 async function loadHierarchy(
-  database: SqlDatabase,
+  database: SqlReadDatabase,
   operation: LifecycleRequest["operation"],
   target: LifecycleTarget,
 ): Promise<CatalogHierarchy> {

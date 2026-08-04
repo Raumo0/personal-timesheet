@@ -1,6 +1,12 @@
 import { ZodError } from "zod";
 
-import { getClientDatabase, type SqlDatabase } from "../clients/database";
+import {
+  getClientDatabase,
+  getIndependentSqlStatementExecutor,
+  type IndependentSqlStatementExecutor,
+  type SqlReadDatabase,
+} from "@/infrastructure/sqlite/plugin-sql-adapter";
+
 import {
   normalizeTaskName,
   taskCommandSchema,
@@ -15,7 +21,8 @@ import {
 } from "./task-catalog";
 
 interface SqliteTaskCatalogOptions {
-  getDatabase?: () => Promise<SqlDatabase>;
+  getDatabase?: () => Promise<SqlReadDatabase>;
+  statementExecutor?: IndependentSqlStatementExecutor;
   createId?: () => string;
   now?: () => Date;
 }
@@ -27,12 +34,14 @@ const SELECT_COLUMNS = `
 `;
 
 export class SqliteTaskCatalog implements TaskCatalog {
-  private readonly getDatabase: () => Promise<SqlDatabase>;
+  private readonly getDatabase: () => Promise<SqlReadDatabase>;
+  private readonly statementExecutor: IndependentSqlStatementExecutor;
   private readonly createId: () => string;
   private readonly now: () => Date;
 
   constructor(options: SqliteTaskCatalogOptions = {}) {
     this.getDatabase = options.getDatabase ?? getClientDatabase;
+    this.statementExecutor = options.statementExecutor ?? getIndependentSqlStatementExecutor();
     this.createId = options.createId ?? (() => crypto.randomUUID());
     this.now = options.now ?? (() => new Date());
   }
@@ -54,8 +63,7 @@ export class SqliteTaskCatalog implements TaskCatalog {
       const command = taskCommandSchema.parse(input);
       const id = this.createId();
       const timestamp = this.now().toISOString();
-      const database = await this.getDatabase();
-      await database.execute(
+      await this.statementExecutor.execute(
         `INSERT INTO tasks (
           id, project_id, name, normalized_name, hourly_rate_override_minor,
           created_at, updated_at
@@ -89,8 +97,7 @@ export class SqliteTaskCatalog implements TaskCatalog {
     return this.translateErrors(async () => {
       const command = taskCommandSchema.parse(input);
       const timestamp = this.now().toISOString();
-      const database = await this.getDatabase();
-      const result = await database.execute(
+      const result = await this.statementExecutor.execute(
         `UPDATE tasks
          SET name = $1, normalized_name = $2,
              hourly_rate_override_minor = $3, updated_at = $4
@@ -107,14 +114,7 @@ export class SqliteTaskCatalog implements TaskCatalog {
       if (result.rowsAffected === 0) {
         throw new TaskCatalogError("not-found", "Task was not found");
       }
-      const rows = await database.select(
-        `${SELECT_COLUMNS} WHERE project_id = $1 AND id = $2 AND archived_at IS NULL`,
-        [projectId, id],
-      );
-      if (rows.length !== 1) {
-        throw new TaskCatalogError("not-found", "Task was not found");
-      }
-      return taskFromRow(rows[0]);
+      return { id, projectId, ...command, createdAt: timestamp, updatedAt: timestamp, archivedAt: null };
     });
   }
 

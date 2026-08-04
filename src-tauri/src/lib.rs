@@ -1,6 +1,7 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 pub mod backup;
-mod catalog_lifecycle;
+pub mod catalog_lifecycle;
+pub mod client_update;
 mod database;
 
 use std::path::Path;
@@ -77,6 +78,22 @@ async fn apply_catalog_lifecycle(
     .await
 }
 
+#[tauri::command]
+async fn apply_client_update(
+    app: AppHandle,
+    plan: client_update::ClientUpdatePlan,
+) -> Result<client_update::ClientRecord, String> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| format!("application data directory is unavailable: {error}"))?;
+    client_update::apply_at_path(
+        &backup::BackupPaths::from_config_dir(&config_dir).live_database,
+        plan,
+    )
+    .await
+}
+
 fn application_context() -> tauri::Context<tauri::Wry> {
     tauri::generate_context!()
 }
@@ -97,7 +114,8 @@ pub fn run() {
             stage_restore_backup,
             cancel_staged_restore,
             commit_staged_restore,
-            apply_catalog_lifecycle
+            apply_catalog_lifecycle,
+            apply_client_update
         ])
         .on_page_load(|webview, payload| {
             let window = webview.window();

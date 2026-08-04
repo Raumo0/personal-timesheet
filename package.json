@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "lint:native-transactions": "node tools/check_native_transaction_boundary.mjs",
     "spec": "openspec",
     "spec:doctor": "openspec doctor",
     "test": "vitest run --passWithNoTests",

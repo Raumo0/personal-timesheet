@@ -1,6 +1,9 @@
 import { describe, expect, test, vi } from "vitest";
 
-import type { SqlDatabase } from "../clients/database";
+import type {
+  IndependentSqlStatementExecutor,
+  SqlReadDatabase,
+} from "@/infrastructure/sqlite/plugin-sql-adapter";
 import { taskCatalogContract } from "./task-catalog.contract";
 import { SqliteTaskCatalog } from "./sqlite-task-catalog";
 import type { TaskRow } from "./task";
@@ -79,27 +82,42 @@ function createDatabase(initialRows: Array<typeof inheritedRow> = []) {
         )
         .sort((left, right) => left.name.localeCompare(right.name));
     }),
-  } satisfies SqlDatabase;
+  } satisfies SqlReadDatabase & IndependentSqlStatementExecutor;
   return database;
+}
+
+function databaseOptions(database: ReturnType<typeof createDatabase>) {
+  return { getDatabase: async () => database, statementExecutor: database };
 }
 
 let contractId = 0;
 taskCatalogContract("SQLite", () => {
   const database = createDatabase();
   return new SqliteTaskCatalog({
-    getDatabase: async () => database,
+    ...databaseOptions(database),
     createId: () => `task-${++contractId}`,
     now: () => new Date(now),
   });
 });
 
 describe("SQLite task catalog persistence", () => {
+  test("updates without opening the read database", async () => {
+    const statementExecutor = createDatabase([inheritedRow]);
+    const catalog = new SqliteTaskCatalog({
+      getDatabase: vi.fn().mockRejectedValue(new Error("read unavailable")),
+      statementExecutor,
+      now: () => new Date(now),
+    });
+    await expect(catalog.update("project-1", "task-1", { name: "Renamed", hourlyRateOverrideMinor: 0 })).resolves.toMatchObject({
+      id: "task-1", projectId: "project-1", name: "Renamed", updatedAt: now,
+    });
+  });
   test("binds inherited NULL and maps an explicit zero row", async () => {
     const database = createDatabase([
       { ...inheritedRow, hourly_rate_override_minor: 0 },
     ]);
     const catalog = new SqliteTaskCatalog({
-      getDatabase: async () => database,
+      ...databaseOptions(database),
       createId: () => "task-2",
       now: () => new Date(now),
     });
@@ -126,7 +144,7 @@ describe("SQLite task catalog persistence", () => {
 
   test("uses ordered project-scoped active and archived list SQL", async () => {
     const database = createDatabase([inheritedRow]);
-    const catalog = new SqliteTaskCatalog({ getDatabase: async () => database });
+    const catalog = new SqliteTaskCatalog(databaseOptions(database));
 
     await catalog.list("project-1", "active");
     expect(database.select).toHaveBeenLastCalledWith(
@@ -148,7 +166,7 @@ describe("SQLite task catalog persistence", () => {
   test("scopes update statements to both task and project", async () => {
     const database = createDatabase([inheritedRow]);
     const catalog = new SqliteTaskCatalog({
-      getDatabase: async () => database,
+      ...databaseOptions(database),
       now: () => new Date(now),
     });
 
@@ -166,7 +184,7 @@ describe("SQLite task catalog persistence", () => {
 
   test("maps read and write failures to persistence errors", async () => {
     const database = createDatabase();
-    const catalog = new SqliteTaskCatalog({ getDatabase: async () => database });
+    const catalog = new SqliteTaskCatalog(databaseOptions(database));
 
     database.select.mockRejectedValueOnce(new Error("database locked"));
     await expect(catalog.list("project-1", "active")).rejects.toMatchObject({

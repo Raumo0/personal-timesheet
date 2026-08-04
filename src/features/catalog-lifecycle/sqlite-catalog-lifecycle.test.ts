@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
 
-import type { SqlDatabase } from "../clients/database";
+import type { SqlReadDatabase } from "@/infrastructure/sqlite/plugin-sql-adapter";
 import {
   CatalogLifecycleError,
   planCatalogLifecycle,
@@ -18,7 +18,7 @@ const archivedAt = "2026-08-04T09:00:00.000Z";
 const appliedAt = "2026-08-05T10:30:00.000Z";
 
 interface DatabaseHarness {
-  database: SqlDatabase;
+  database: SqlReadDatabase;
   events: string[];
   apply(plan: LifecyclePlan, appliedAt: string): void;
   snapshot(): CatalogHierarchy;
@@ -31,56 +31,15 @@ function createDatabaseHarness(
   rollbackFailure?: () => unknown | undefined,
 ): DatabaseHarness {
   let committed = structuredClone(hierarchy);
-  let transaction: CatalogHierarchy | undefined;
   const events: string[] = [];
 
   const database = {
     select: vi.fn(async (query: string, values: unknown[] = []) => {
       const table = selectedTable(query);
       events.push(`SELECT ${table}`);
-      const source = transaction ?? committed;
-      return selectRows(source, table, query, values);
+      return selectRows(committed, table, query, values);
     }),
-    execute: vi.fn(async (query: string, values: unknown[] = []) => {
-      if (query === "BEGIN") {
-        events.push("BEGIN");
-        transaction = structuredClone(committed);
-        return { rowsAffected: 0 };
-      }
-      if (query === "COMMIT") {
-        events.push("COMMIT");
-        if (!transaction) throw new Error("no transaction");
-        committed = transaction;
-        transaction = undefined;
-        return { rowsAffected: 0 };
-      }
-      if (query === "ROLLBACK") {
-        events.push("ROLLBACK");
-        const failure = rollbackFailure?.();
-        if (failure !== undefined) throw failure;
-        transaction = undefined;
-        return { rowsAffected: 0 };
-      }
-
-      const table = updatedTable(query);
-      events.push(`UPDATE ${table}`);
-      const failure = applyFailure?.();
-      if (failure !== undefined) throw failure;
-      if (!transaction) throw new Error("update outside transaction");
-      const [nextArchivedAt, updatedAt, id] = values;
-      const rows =
-        table === "clients"
-          ? transaction.clients
-          : table === "projects"
-            ? transaction.projects
-            : transaction.tasks;
-      const record = rows.find((candidate) => candidate.id === id);
-      if (!record) return { rowsAffected: 0 };
-      record.archivedAt = nextArchivedAt as string | null;
-      record.updatedAt = String(updatedAt);
-      return { rowsAffected: 1 };
-    }),
-  } satisfies SqlDatabase;
+  } satisfies SqlReadDatabase;
 
   return {
     database,
@@ -121,7 +80,6 @@ function createDatabaseHarness(
     snapshot: () => structuredClone(committed),
     replaceSnapshot: (next) => {
       committed = structuredClone(next);
-      transaction = undefined;
     },
   };
 }
@@ -407,13 +365,6 @@ function selectRows(
       .map(taskRow);
   }
   return hierarchy.tasks.filter((candidate) => candidate.id === id).map(taskRow);
-}
-
-function updatedTable(query: string): "clients" | "projects" | "tasks" {
-  if (query.includes("UPDATE clients")) return "clients";
-  if (query.includes("UPDATE projects")) return "projects";
-  if (query.includes("UPDATE tasks")) return "tasks";
-  throw new Error(`unexpected execute: ${query}`);
 }
 
 function clientRow(client: CatalogHierarchy["clients"][number]) {

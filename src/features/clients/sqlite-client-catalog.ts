@@ -1,4 +1,12 @@
+import { invoke } from "@tauri-apps/api/core";
 import { ZodError } from "zod";
+
+import {
+  getClientDatabase,
+  getIndependentSqlStatementExecutor,
+  type IndependentSqlStatementExecutor,
+  type SqlReadDatabase,
+} from "@/infrastructure/sqlite/plugin-sql-adapter";
 
 import {
   clientCommandSchema,
@@ -7,19 +15,25 @@ import {
   type ClientCommand,
   normalizeClientName,
 } from "./client";
-import { rescaleRateOverride } from "../projects/project";
 import {
   type ClientCatalog,
   ClientCatalogError,
   type ClientList,
 } from "./client-catalog";
-import { getClientDatabase, type SqlDatabase } from "./database";
-
+import {
+  buildClientUpdatePlan,
+  type ClientUpdatePlan,
+  type ClientUpdatePlanClient,
+} from "./client-update-plan";
 interface SqliteClientCatalogOptions {
-  getDatabase?: () => Promise<SqlDatabase>;
+  getDatabase?: () => Promise<SqlReadDatabase>;
+  statementExecutor?: IndependentSqlStatementExecutor;
   createId?: () => string;
   now?: () => Date;
+  invoke?: Invoke;
 }
+
+type Invoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
 
 const SELECT_COLUMNS = `
   SELECT id, name, normalized_name, currency_code, hourly_rate_minor,
@@ -28,14 +42,19 @@ const SELECT_COLUMNS = `
 `;
 
 export class SqliteClientCatalog implements ClientCatalog {
-  private readonly getDatabase: () => Promise<SqlDatabase>;
+  private readonly getDatabase: () => Promise<SqlReadDatabase>;
+  private readonly statementExecutor: IndependentSqlStatementExecutor;
   private readonly createId: () => string;
   private readonly now: () => Date;
+  private readonly invoke: Invoke;
 
   constructor(options: SqliteClientCatalogOptions = {}) {
     this.getDatabase = options.getDatabase ?? getClientDatabase;
+    this.statementExecutor =
+      options.statementExecutor ?? getIndependentSqlStatementExecutor();
     this.createId = options.createId ?? (() => crypto.randomUUID());
     this.now = options.now ?? (() => new Date());
+    this.invoke = options.invoke ?? invoke;
   }
 
   async list(filter: ClientList): Promise<Client[]> {
@@ -68,8 +87,7 @@ export class SqliteClientCatalog implements ClientCatalog {
       const command = clientCommandSchema.parse(input);
       const id = this.createId();
       const timestamp = this.now().toISOString();
-      const database = await this.getDatabase();
-      await database.execute(
+      await this.statementExecutor.execute(
         `INSERT INTO clients (
           id, name, normalized_name, currency_code, hourly_rate_minor,
           created_at, updated_at
@@ -106,126 +124,42 @@ export class SqliteClientCatalog implements ClientCatalog {
       if (existingRows.length !== 1) {
         throw new ClientCatalogError("not-found", "Client was not found");
       }
-      const existingClient = clientFromRow(existingRows[0]);
-      const currencyChanged = existingClient.currencyCode !== command.currencyCode;
-      const projectRows = currencyChanged
-        ? await database.select(
-            `SELECT id, hourly_rate_override_minor FROM projects
-             WHERE client_id = $1 AND hourly_rate_override_minor IS NOT NULL`,
-            [id],
-          )
-        : [];
-      const taskRows = currencyChanged
-        ? await database.select(
-            `SELECT tasks.id, tasks.hourly_rate_override_minor
-             FROM tasks
-             JOIN projects ON projects.id = tasks.project_id
-             WHERE projects.client_id = $1
-               AND tasks.hourly_rate_override_minor IS NOT NULL`,
-            [id],
-          )
-        : [];
-      const rescaledProjectOverrides = this.rescaleOverrides(
-        projectRows,
-        "project",
-        existingClient.currencyCode,
-        command.currencyCode,
-      );
-      const rescaledTaskOverrides = this.rescaleOverrides(
-        taskRows,
-        "task",
-        existingClient.currencyCode,
-        command.currencyCode,
-      );
-
-      if (currencyChanged) await database.execute("BEGIN");
-      try {
-        const result = await database.execute(
-          `UPDATE clients
-           SET name = $1, normalized_name = $2, currency_code = $3,
-               hourly_rate_minor = $4, updated_at = $5
-           WHERE id = $6 AND archived_at IS NULL`,
-          [
-            command.name,
-            normalizeClientName(command.name),
-            command.currencyCode,
-            command.hourlyRateMinor,
-            timestamp,
-            id,
-          ],
-        );
-        if (result.rowsAffected === 0) {
-          throw new ClientCatalogError("not-found", "Client was not found");
-        }
-        for (const override of rescaledProjectOverrides) {
-          await database.execute(
-            "UPDATE projects SET hourly_rate_override_minor = $1 WHERE id = $2",
-            [override.hourlyRateOverrideMinor, override.id],
-          );
-        }
-        for (const override of rescaledTaskOverrides) {
-          await database.execute(
-            "UPDATE tasks SET hourly_rate_override_minor = $1 WHERE id = $2",
-            [override.hourlyRateOverrideMinor, override.id],
-          );
-        }
-        if (currencyChanged) await database.execute("COMMIT");
-      } catch (error) {
-        if (currencyChanged) await database.execute("ROLLBACK");
-        throw error;
-      }
-      const rows = await database.select(
-        `${SELECT_COLUMNS} WHERE id = $1 AND archived_at IS NULL`,
+      const projectRows = await database.select(
+        `SELECT id, hourly_rate_override_minor, updated_at FROM projects
+         WHERE client_id = $1 AND archived_at IS NULL
+           AND hourly_rate_override_minor IS NOT NULL
+         ORDER BY id`,
         [id],
       );
-      if (rows.length !== 1) {
-        throw new ClientCatalogError("not-found", "Client was not found");
-      }
-      return clientFromRow(rows[0]);
-    });
-  }
-
-  private rescaleOverrides(
-    rows: unknown[],
-    owner: "project" | "task",
-    fromCurrencyCode: string,
-    toCurrencyCode: string,
-  ): Array<{ id: string; hourlyRateOverrideMinor: number }> {
-    return rows.map((row) => {
-      const stored = row as {
-        id?: unknown;
-        hourly_rate_override_minor?: unknown;
-      };
-      if (
-        typeof row !== "object" ||
-        row === null ||
-        typeof stored.id !== "string" ||
-        stored.id.length === 0 ||
-        typeof stored.hourly_rate_override_minor !== "number" ||
-        !Number.isSafeInteger(stored.hourly_rate_override_minor) ||
-        stored.hourly_rate_override_minor < 0
-      ) {
-        throw new ClientCatalogError(
-          "invalid-data",
-          `Stored ${owner} data is invalid`,
-        );
-      }
+      const taskRows = await database.select(
+        `SELECT tasks.id, tasks.hourly_rate_override_minor, tasks.updated_at
+         FROM tasks
+         JOIN projects ON projects.id = tasks.project_id
+         WHERE projects.client_id = $1
+           AND projects.archived_at IS NULL
+           AND tasks.archived_at IS NULL
+           AND tasks.hourly_rate_override_minor IS NOT NULL
+         ORDER BY tasks.id`,
+        [id],
+      );
+      let plan: ClientUpdatePlan;
       try {
-        return {
-          id: stored.id,
-          hourlyRateOverrideMinor: rescaleRateOverride(
-            stored.hourly_rate_override_minor,
-            fromCurrencyCode,
-            toCurrencyCode,
-          ) as number,
-        };
+        plan = buildClientUpdatePlan({
+          clientRow: existingRows[0],
+          command,
+          projectRows,
+          taskRows,
+          updatedAt: timestamp,
+        });
       } catch (error) {
+        if (error instanceof ZodError) throw error;
         throw new ClientCatalogError(
           "invalid-data",
-          `${owner === "project" ? "Project" : "Task"} rates cannot be represented in the new currency`,
+          "Descendant rates cannot be represented in the new currency",
           error,
         );
       }
+      return this.invoke<ClientUpdatePlanClient>("apply_client_update", { plan });
     });
   }
 
@@ -235,6 +169,24 @@ export class SqliteClientCatalog implements ClientCatalog {
     } catch (error) {
       if (error instanceof ClientCatalogError) throw error;
       if (error instanceof ZodError) {
+        throw new ClientCatalogError(
+          "invalid-data",
+          "Stored client data is invalid",
+          error,
+        );
+      }
+      const nativeMessage = errorMessage(error);
+      if (nativeMessage.startsWith("duplicate:")) {
+        throw new ClientCatalogError(
+          "duplicate-name",
+          "An active client already uses this name",
+          error,
+        );
+      }
+      if (nativeMessage.startsWith("missing:")) {
+        throw new ClientCatalogError("not-found", "Client was not found", error);
+      }
+      if (nativeMessage.startsWith("invalid-data:")) {
         throw new ClientCatalogError(
           "invalid-data",
           "Stored client data is invalid",
@@ -258,4 +210,10 @@ export class SqliteClientCatalog implements ClientCatalog {
       );
     }
   }
+}
+
+function errorMessage(error: unknown): string {
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+  return "";
 }
