@@ -62,7 +62,9 @@ billing currency, and default hourly rate subject to the same validation rules
 as client creation. When the billing currency changes, numeric project and task
 override amounts SHALL be preserved in the new currency when all of them can be
 represented at its supported precision; otherwise the change SHALL be rejected
-without partially updating the client, its projects, or their tasks.
+without partially updating the client, its projects, or their tasks. A local
+persistence failure during the change SHALL also leave the Client and every
+descendant override at their previously saved values.
 
 #### Scenario: Save client changes
 - **WHEN** the user saves valid changes to an active client
@@ -79,6 +81,10 @@ without partially updating the client, its projects, or their tasks.
 #### Scenario: Reject a lossy descendant currency change
 - **WHEN** changing a client's currency would discard precision from any project or task override
 - **THEN** the application leaves the client, all of its projects, and all of their tasks unchanged and identifies why the currency cannot be changed
+
+#### Scenario: Roll back a failed currency update
+- **WHEN** local persistence fails after a Client currency update starts changing the Client or descendant overrides
+- **THEN** the Client, every Project, and every Task retain their previously saved currency and rate values, and the interface reports that the change was not saved
 
 ### Requirement: Archive a client
 The application SHALL allow the user to archive an active client only after a
