@@ -4,9 +4,7 @@
 
 Defines how the user maintains durable client records and their default
 billing details before assigning projects, tasks, time, or expenses.
-
 ## Requirements
-
 ### Requirement: Client catalog overview
 The application SHALL provide a Clients workspace that displays active clients
 by default, allows the user to inspect archived clients separately, and provides
@@ -83,16 +81,30 @@ without partially updating the client, its projects, or their tasks.
 - **THEN** the application leaves the client, all of its projects, and all of their tasks unchanged and identifies why the currency cannot be changed
 
 ### Requirement: Archive a client
-The application SHALL allow the user to archive an active client without
-permanently deleting its record.
+The application SHALL allow the user to archive an active client only after a
+confirmation that states the Client and every Project and Task beneath it will
+be archived. Confirmation SHALL archive the complete hierarchy atomically
+without permanently deleting catalog records or their historical relationships.
 
 #### Scenario: Confirm client archival
 - **WHEN** the user confirms archiving an active client
-- **THEN** the client is removed from the active list and appears in the archived view
+- **THEN** the Client, all of its active Projects, and all active Tasks beneath those Projects become archived and leave their active views
+
+#### Scenario: Describe the cascade before confirmation
+- **WHEN** an active client has descendant Projects or Tasks and the user requests archival
+- **THEN** the confirmation identifies the Client and states that every Project and Task beneath it is included
 
 #### Scenario: Cancel client archival
 - **WHEN** the user cancels the archival confirmation
-- **THEN** the client remains active and unchanged
+- **THEN** the Client and every descendant remain unchanged
+
+#### Scenario: Client cascade cannot be saved
+- **WHEN** local persistence fails while archiving the Client hierarchy
+- **THEN** no affected Client, Project, or Task changes lifecycle state and the interface displays a recoverable error with Retry
+
+#### Scenario: Client cascade rollback also fails
+- **WHEN** local persistence fails and the attempted transaction rollback also fails
+- **THEN** the interface identifies both the original persistence failure and the rollback failure without claiming that the hierarchy state was restored
 
 ### Requirement: Durable local client data
 The application SHALL retain successfully saved client changes across
@@ -109,3 +121,20 @@ application restarts and SHALL not transmit client data to an external service.
 #### Scenario: Client changes cannot be saved
 - **WHEN** a local persistence error prevents a create, edit, or archive operation
 - **THEN** the application preserves the user's current context and explains that the change was not saved
+
+### Requirement: Restore an archived client
+The application SHALL allow the user to restore an archived Client from the
+archived view after confirming the exact target. Restoring a Client SHALL make
+only that Client active and SHALL NOT restore its archived Projects or Tasks.
+
+#### Scenario: Restore only the client
+- **WHEN** the user confirms restoring an archived Client
+- **THEN** the Client becomes active while every archived Project and Task beneath it remains archived
+
+#### Scenario: Cancel client restore
+- **WHEN** the user cancels the restore confirmation
+- **THEN** the Client and every descendant remain unchanged
+
+#### Scenario: Client restore cannot be saved
+- **WHEN** local persistence fails while restoring the Client
+- **THEN** the Client remains archived and the interface displays a recoverable error with Retry

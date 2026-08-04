@@ -77,19 +77,6 @@ export class InMemoryClientCatalog implements ClientCatalog {
     return structuredClone(client);
   }
 
-  async archive(id: string): Promise<void> {
-    this.throwConfiguredFailure();
-    const client = this.clients.find(
-      (candidate) => candidate.id === id && candidate.archivedAt === null,
-    );
-    if (!client) {
-      throw new ClientCatalogError("not-found", "Client was not found");
-    }
-    const now = this.now().toISOString();
-    client.archivedAt = now;
-    client.updatedAt = now;
-  }
-
   private assertUniqueName(name: string, excludedId?: string) {
     const normalizedName = normalizeClientName(name);
     const duplicate = this.clients.some(

@@ -23,10 +23,10 @@ def expects_red(tasks_text: str) -> bool:
 
 
 def validate_result(returncode: int, output: str, *, red: bool) -> str | None:
-    if not red:
-        return None if returncode == 0 else "database suite failed after task 3.1"
     if returncode == 0:
-        return "database suite was expected to fail before migration 4"
+        return None
+    if not red:
+        return "database suite failed after task 3.1"
     failures = FAILED_TEST.findall(output)
     if failures != [EXPECTED_RED_TEST]:
         return (

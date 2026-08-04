@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { ClientCatalog } from "@/features/clients/client-catalog";
+import type { CatalogLifecycle } from "@/features/catalog-lifecycle/catalog-lifecycle";
 import type { ProjectCatalog } from "@/features/projects/project-catalog";
 import type { TaskCatalog } from "@/features/tasks/task-catalog";
 import type { BackupService } from "@/features/backup/backup-service";
@@ -46,15 +47,17 @@ const SettingsDataPage = lazy(() =>
 const ProjectsPage = lazy(() => import("@/features/projects/ProjectsPage").then((module) => ({ default: module.ProjectsPage })));
 const TasksPage = lazy(() => import("@/features/tasks/TasksPage").then((module) => ({ default: module.TasksPage })));
 
-function ProjectWorkspaceRoute({ clientCatalog, projectCatalog }: { clientCatalog: ClientCatalog; projectCatalog: ProjectCatalog }) {
+function ProjectWorkspaceRoute({ clientCatalog, projectCatalog, lifecycle }: { clientCatalog: ClientCatalog; projectCatalog: ProjectCatalog; lifecycle?: CatalogLifecycle }) {
   const { clientId } = useParams();
-  const [client, setClient] = useState<import("@/features/clients/client").Client>();
-  useEffect(() => { void (async () => {
-    const active = await clientCatalog.list("active");
-    setClient(active.find((candidate) => candidate.id === clientId) ?? (await clientCatalog.list("archived")).find((candidate) => candidate.id === clientId));
-  })(); }, [clientCatalog, clientId]);
-  if (!client) return <p role="status">Opening projects…</p>;
-  return <ProjectsPage client={client} catalog={projectCatalog} />;
+  const [attempt, setAttempt] = useState(0);
+  const [context, setContext] = useState<{ status: "loading" } | { status: "loaded"; client: import("@/features/clients/client").Client } | { status: "error" }>({ status: "loading" });
+  useEffect(() => { let current = true; setContext({ status: "loading" }); void (async () => {
+    try { const active = await clientCatalog.list("active"); const client = active.find((candidate) => candidate.id === clientId) ?? (await clientCatalog.list("archived")).find((candidate) => candidate.id === clientId); if (current && client) setContext({ status: "loaded", client }); else if (current) setContext({ status: "error" }); }
+    catch { if (current) setContext({ status: "error" }); }
+  })(); return () => { current = false; }; }, [attempt, clientCatalog, clientId]);
+  if (context.status === "loading") return <p role="status">Opening projects…</p>;
+  if (context.status === "error") return <div role="alert"><p>Projects could not be opened</p><Button onClick={() => setAttempt((value) => value + 1)}>Retry</Button></div>;
+  return <ProjectsPage client={context.client} catalog={projectCatalog} lifecycle={lifecycle} />;
 }
 
 function TaskWorkspaceUnavailable() {
@@ -75,10 +78,12 @@ function TaskWorkspaceRoute({
   clientCatalog,
   projectCatalog,
   taskCatalog,
+  lifecycle,
 }: {
   clientCatalog: ClientCatalog;
   projectCatalog: ProjectCatalog;
   taskCatalog: TaskCatalog;
+  lifecycle?: CatalogLifecycle;
 }) {
   const { clientId, projectId } = useParams();
   const [context, setContext] = useState<
@@ -126,6 +131,7 @@ function TaskWorkspaceRoute({
       catalog={taskCatalog}
       client={context.client}
       project={context.project}
+      lifecycle={lifecycle}
     />
   );
 }
@@ -173,11 +179,13 @@ export function AppShell({
   clientCatalog,
   projectCatalog,
   taskCatalog,
+  lifecycle,
 }: {
   backupService: BackupService;
   clientCatalog: ClientCatalog;
   projectCatalog: ProjectCatalog;
   taskCatalog: TaskCatalog;
+  lifecycle?: CatalogLifecycle;
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const location = useLocation();
@@ -288,11 +296,12 @@ export function AppShell({
                       clientCatalog={clientCatalog}
                       projectCatalog={projectCatalog}
                       taskCatalog={taskCatalog}
+                      lifecycle={lifecycle}
                     />
                   </Suspense>
                 }
               />
-              <Route path="/clients/:clientId/projects" element={<Suspense fallback={<p role="status">Opening projects…</p>}><ProjectWorkspaceRoute clientCatalog={clientCatalog} projectCatalog={projectCatalog} /></Suspense>} />
+              <Route path="/clients/:clientId/projects" element={<Suspense fallback={<p role="status">Opening projects…</p>}><ProjectWorkspaceRoute clientCatalog={clientCatalog} projectCatalog={projectCatalog} lifecycle={lifecycle} /></Suspense>} />
               {navigationDestinations.map((destination) => (
                 <Route
                   key={destination.path}
@@ -305,7 +314,7 @@ export function AppShell({
                           </p>
                         }
                       >
-                        <ClientsPage catalog={clientCatalog} />
+                        <ClientsPage catalog={clientCatalog} lifecycle={lifecycle} />
                       </Suspense>
                     ) : destination.path === "/settings" ? (
                       <Suspense

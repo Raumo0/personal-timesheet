@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Archive, Building2, Pencil, Plus, RotateCcw } from "lucide-react";
+import { Link, useInRouterContext } from "react-router";
 
 import {
   AlertDialog,
@@ -40,6 +41,7 @@ interface ClientsPageProps {
 }
 
 export function ClientsPage({ catalog, lifecycle }: ClientsPageProps) {
+  const isRouted = useInRouterContext();
   const [filter, setFilter] = useState<ClientList>("active");
   const [clients, setClients] = useState<Client[]>([]);
   const [status, setStatus] = useState<"loading" | "loaded" | "error">("loading");
@@ -80,14 +82,10 @@ export function ClientsPage({ catalog, lifecycle }: ClientsPageProps) {
   }
 
   async function confirmArchive() {
-    if (!archiveClient) return;
+    if (!archiveClient || !lifecycle || !lifecyclePlan) return;
     setMutationError(undefined);
     try {
-      if (lifecycle && lifecyclePlan) {
-        await lifecycle.apply(lifecyclePlan);
-      } else {
-        await catalog.archive(archiveClient.id);
-      }
+      await lifecycle.apply(lifecyclePlan);
       setArchiveClient(undefined);
       setLifecyclePlan(undefined);
       setRetryRequest(undefined);
@@ -118,7 +116,6 @@ export function ClientsPage({ catalog, lifecycle }: ClientsPageProps) {
     initiator?: HTMLButtonElement,
   ) {
     if (!lifecycle) {
-      setArchiveClient(targetClient);
       return;
     }
     if (initiator) lifecycleInitiator.current = initiator;
@@ -282,9 +279,23 @@ export function ClientsPage({ catalog, lifecycle }: ClientsPageProps) {
                 return (
                   <TableRow key={client.id}>
                     <TableCell className="max-w-96 px-4 py-3 font-medium">
-                      <a className="block truncate hover:underline" href={`#/clients/${client.id}/projects`} title={client.name}>
-                        {client.name}
-                      </a>
+                      {isRouted ? (
+                        <Link
+                          className="block truncate hover:underline"
+                          title={client.name}
+                          to={`/clients/${client.id}/projects`}
+                        >
+                          {client.name}
+                        </Link>
+                      ) : (
+                        <a
+                          className="block truncate hover:underline"
+                          href={`#/clients/${client.id}/projects`}
+                          title={client.name}
+                        >
+                          {client.name}
+                        </a>
+                      )}
                     </TableCell>
                     <TableCell className="py-3 text-muted-foreground">{client.currencyCode}</TableCell>
                     <TableCell className="py-3 pr-4 text-right font-medium tabular-nums">

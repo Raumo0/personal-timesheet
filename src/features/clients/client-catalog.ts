@@ -26,5 +26,4 @@ export interface ClientCatalog {
   get(id: string): Promise<Client>;
   create(command: ClientCommand): Promise<Client>;
   update(id: string, command: ClientCommand): Promise<Client>;
-  archive(id: string): Promise<void>;
 }

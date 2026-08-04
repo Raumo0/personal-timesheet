@@ -118,22 +118,6 @@ export class SqliteTaskCatalog implements TaskCatalog {
     });
   }
 
-  async archive(projectId: string, id: string): Promise<void> {
-    return this.translateErrors(async () => {
-      const database = await this.getDatabase();
-      const timestamp = this.now().toISOString();
-      const result = await database.execute(
-        `UPDATE tasks
-         SET archived_at = $1, updated_at = $1
-         WHERE id = $2 AND project_id = $3 AND archived_at IS NULL`,
-        [timestamp, id, projectId],
-      );
-      if (result.rowsAffected === 0) {
-        throw new TaskCatalogError("not-found", "Task was not found");
-      }
-    });
-  }
-
   private async translateErrors<T>(operation: () => Promise<T>): Promise<T> {
     try {
       return await operation();

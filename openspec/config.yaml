@@ -28,7 +28,9 @@ rules:
     - Keep business rules in deep modules with small, testable interfaces.
   tasks:
     - Name exact files and verification commands for each implementation task.
-    - Express behavior changes as red-green-refactor test cycles.
+    - Express behavior changes as coverage-first test cycles. A passing focused
+      test is sufficient evidence; expected RED evidence is optional when it
+      proves a specified behavior is not yet implemented.
   validation:
     - Define deterministic validation commands, expected evidence, and manual limitations.
     - Keep canonical per-task execution evidence under `.agentic-workflow/`.

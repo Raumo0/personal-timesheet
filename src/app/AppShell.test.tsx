@@ -7,6 +7,7 @@ import App from "@/App";
 import { AppShell } from "@/app/AppShell";
 import { ThemeProvider } from "@/app/theme/ThemeProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { InMemoryCatalogLifecycle } from "@/features/catalog-lifecycle/in-memory-catalog-lifecycle";
 import { InMemoryClientCatalog } from "@/features/clients/in-memory-client-catalog";
 import { InMemoryProjectCatalog } from "@/features/projects/in-memory-project-catalog";
 import { InMemoryTaskCatalog } from "@/features/tasks/in-memory-task-catalog";
@@ -15,6 +16,7 @@ import { InMemoryBackupService } from "@/features/backup/in-memory-backup-servic
 const timestamp = "2026-08-03T08:00:00.000Z";
 const client = { id: "client-1", name: "Acme", currencyCode: "EUR", hourlyRateMinor: 12_500, createdAt: timestamp, updatedAt: timestamp, archivedAt: null };
 const project = { id: "project-1", clientId: client.id, name: "Website", hourlyRateOverrideMinor: null, createdAt: timestamp, updatedAt: timestamp, archivedAt: null };
+const task = { id: "task-1", projectId: project.id, name: "Research", hourlyRateOverrideMinor: null, createdAt: timestamp, updatedAt: timestamp, archivedAt: null };
 
 function renderTaskRoute(
   path = "/clients/client-1/projects/project-1/tasks",
@@ -23,6 +25,7 @@ function renderTaskRoute(
     projectCatalog: new InMemoryProjectCatalog({ projects: [project] }),
     taskCatalog: new InMemoryTaskCatalog(),
   },
+  lifecycle?: InMemoryCatalogLifecycle,
 ) {
   vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({
     matches: false,
@@ -38,11 +41,29 @@ function renderTaskRoute(
             clientCatalog={catalogs.clientCatalog}
             projectCatalog={catalogs.projectCatalog}
             taskCatalog={catalogs.taskCatalog}
+            lifecycle={lifecycle}
           />
         </MemoryRouter>
       </TooltipProvider>
     </ThemeProvider>,
   );
+}
+
+function lifecycleHarness(archived = false) {
+  const archivedAt = archived ? timestamp : null;
+  const hierarchy = {
+    clients: [{ ...client, archivedAt }],
+    projects: [{ ...project, archivedAt }],
+    tasks: [{ ...task, archivedAt }],
+  };
+  return {
+    catalogs: {
+      clientCatalog: new InMemoryClientCatalog({ clients: hierarchy.clients }),
+      projectCatalog: new InMemoryProjectCatalog({ projects: hierarchy.projects }),
+      taskCatalog: new InMemoryTaskCatalog({ tasks: hierarchy.tasks }),
+    },
+    lifecycle: new InMemoryCatalogLifecycle({ hierarchy }),
+  };
 }
 
 function renderApp() {
@@ -152,6 +173,30 @@ describe("application shell", () => {
     expect(await screen.findByRole("heading", { name: "Projects" })).toBeInTheDocument();
   });
 
+  test("recovers a failed Project context load on Retry", async () => {
+    const user = userEvent.setup();
+    const clientCatalog = new InMemoryClientCatalog({ clients: [client] });
+    const list = clientCatalog.list.bind(clientCatalog);
+    const readFailure = new Error("local catalog is temporarily unavailable");
+    vi.spyOn(clientCatalog, "list")
+      .mockRejectedValueOnce(readFailure)
+      .mockImplementation(list);
+    renderTaskRoute("/clients/client-1/projects", {
+      clientCatalog,
+      projectCatalog: new InMemoryProjectCatalog({ projects: [project] }),
+      taskCatalog: new InMemoryTaskCatalog(),
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Projects could not be opened",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByRole("heading", { name: "Projects" })).toBeInTheDocument();
+    expect(screen.getByText("Website")).toBeInTheDocument();
+  });
+
   test("opens a project task workspace from its deep link", async () => {
     renderTaskRoute(
       "/clients/client-1/projects/project-1/tasks",
@@ -166,6 +211,89 @@ describe("application shell", () => {
     expect(screen.getByText("Acme")).toBeInTheDocument();
     expect(screen.getByText("Website")).toBeInTheDocument();
     expect(await screen.findByText("Research")).toBeInTheDocument();
+  });
+
+  test("injects lifecycle archive planning into the Client screen", async () => {
+    const user = userEvent.setup();
+    const harness = lifecycleHarness();
+    renderTaskRoute("/clients", harness.catalogs, harness.lifecycle);
+    await screen.findByText("Acme");
+
+    await user.click(screen.getByRole("button", { name: "Archive Acme" }));
+
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent(
+      "Archive Acme and every Project and Task beneath it (1 Project, 1 Task).",
+    );
+  });
+
+  test("injects lifecycle archive planning into the Project screen", async () => {
+    const user = userEvent.setup();
+    const harness = lifecycleHarness();
+    renderTaskRoute(
+      "/clients/client-1/projects",
+      harness.catalogs,
+      harness.lifecycle,
+    );
+    await screen.findByText("Website");
+
+    await user.click(screen.getByRole("button", { name: "Archive Website" }));
+
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent(
+      "Archive Website and every Task beneath it (1 Task).",
+    );
+  });
+
+  test("injects lifecycle archive planning into the Task screen", async () => {
+    const user = userEvent.setup();
+    const harness = lifecycleHarness();
+    renderTaskRoute(
+      "/clients/client-1/projects/project-1/tasks",
+      harness.catalogs,
+      harness.lifecycle,
+    );
+    await screen.findByText("Research");
+
+    await user.click(screen.getByRole("button", { name: "Archive Research" }));
+
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent(
+      "Archive Research.",
+    );
+  });
+
+  test("navigates from an archived Client into its retained Project workspace", async () => {
+    const user = userEvent.setup();
+    const harness = lifecycleHarness(true);
+    renderTaskRoute("/clients", harness.catalogs, harness.lifecycle);
+
+    await user.click(screen.getByRole("button", { name: "Archived" }));
+    const clientLink = await screen.findByRole("link", { name: "Acme" });
+    await user.click(clientLink);
+
+    expect(await screen.findByRole("heading", { name: "Projects" })).toBeInTheDocument();
+    expect(screen.getByText(/Acme is archived/)).toBeInTheDocument();
+  });
+
+  test("preserves archived Client and Project context for Task restore", async () => {
+    const user = userEvent.setup();
+    const harness = lifecycleHarness(true);
+    renderTaskRoute(
+      "/clients/client-1/projects",
+      harness.catalogs,
+      harness.lifecycle,
+    );
+
+    await screen.findByRole("heading", { name: "Projects" });
+    await user.click(screen.getByRole("button", { name: "Archived" }));
+    await user.click(await screen.findByRole("link", { name: "Website" }));
+    const breadcrumb = await screen.findByRole("navigation", { name: "Breadcrumb" });
+    expect(within(breadcrumb).getByText("Acme")).toBeInTheDocument();
+    expect(within(breadcrumb).getByRole("link", { name: "Website" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Archived" }));
+    await user.click(await screen.findByRole("button", { name: "Restore Research" }));
+
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent(
+      "Restore Acme, Website, and Research. Sibling records remain unchanged.",
+    );
   });
 
   test("reconstructs task context from catalog lookups after a direct refresh", async () => {

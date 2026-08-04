@@ -28,10 +28,10 @@ def expects_red(tasks_text: str) -> bool:
 
 
 def validate_result(returncode: int, output: str, *, red: bool) -> str | None:
-    if not red:
-        return None if returncode == 0 else "Client lifecycle UI suite failed after task 5.1"
     if returncode == 0:
-        return "Client lifecycle UI suite was expected to fail before lifecycle wiring"
+        return None
+    if not red:
+        return "Client lifecycle UI suite failed after task 5.1"
     failures = FAILED_TEST.findall(output)
     if failures != EXPECTED_RED_TESTS:
         return f"RED evidence must contain exactly the expected Client UI failures; observed {failures!r}"

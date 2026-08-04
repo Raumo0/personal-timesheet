@@ -1,7 +1,6 @@
 import { expect, test, vi } from "vitest";
 
 import {
-  CatalogLifecycleError,
   planCatalogLifecycle,
   type CatalogHierarchy,
   type CatalogLifecycle,
@@ -115,7 +114,7 @@ export function catalogLifecycleContract(
     const beforeStaleApply = harness.snapshot();
 
     await expect(harness.lifecycle.apply(staleClientPlan)).rejects.toEqual(
-      expect.objectContaining<CatalogLifecycleError>({ code: "stale-plan" }),
+      expect.objectContaining({ code: "stale-plan" }),
     );
     expect(harness.snapshot()).toEqual(beforeStaleApply);
   });
@@ -148,7 +147,7 @@ export function catalogLifecycleContract(
     harness.replaceSnapshot(changed);
 
     await expect(harness.lifecycle.apply(plan)).rejects.toEqual(
-      expect.objectContaining<CatalogLifecycleError>({ code: "stale-plan" }),
+      expect.objectContaining({ code: "stale-plan" }),
     );
     expect(harness.snapshot()).toEqual(changed);
     expect(now).not.toHaveBeenCalled();
@@ -172,7 +171,7 @@ export function catalogLifecycleContract(
     harness.replaceSnapshot(changed);
 
     await expect(harness.lifecycle.apply(plan)).rejects.toEqual(
-      expect.objectContaining<CatalogLifecycleError>({ code: "stale-plan" }),
+      expect.objectContaining({ code: "stale-plan" }),
     );
     expect(harness.snapshot()).toEqual(changed);
     expect(now).not.toHaveBeenCalled();
@@ -191,7 +190,7 @@ export function catalogLifecycleContract(
     });
 
     await expect(harness.lifecycle.apply(plan)).rejects.toEqual(
-      expect.objectContaining<CatalogLifecycleError>({ code: "persistence" }),
+      expect.objectContaining({ code: "persistence" }),
     );
     expect(harness.snapshot()).toEqual(hierarchy);
   });
@@ -209,7 +208,7 @@ export function catalogLifecycleContract(
       target: { kind: "project", id: "project-1" },
     });
     await expect(harness.lifecycle.apply(firstPlan)).rejects.toEqual(
-      expect.objectContaining<CatalogLifecycleError>({ code: "persistence" }),
+      expect.objectContaining({ code: "persistence" }),
     );
 
     const retryPlan = await harness.lifecycle.preview({

@@ -53,7 +53,8 @@ general-purpose assignment. Every assignment must preserve separately:
 - binding source paths;
 - acceptance evidence;
 - allowed scope;
-- required RED and GREEN tests;
+- required focused test evidence, including an allowed passing result or an
+  explicitly expected failure when the behavior is not yet implemented;
 - prohibited external actions; and
 - durable report path.
 

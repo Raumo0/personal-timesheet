@@ -987,12 +987,10 @@ mod tests {
             create_valid_backup(&selected, 3, &["Acme"]).await;
             let mut backup = connect(&selected, false).await;
             add_valid_projects_table(&mut backup).await;
-            sqlx::query(
-                "CREATE TABLE tasks (id TEXT PRIMARY KEY, project_id TEXT, name TEXT)",
-            )
-            .execute(&mut backup)
-            .await
-            .expect("malformed tasks table should be created");
+            sqlx::query("CREATE TABLE tasks (id TEXT PRIMARY KEY, project_id TEXT, name TEXT)")
+                .execute(&mut backup)
+                .await
+                .expect("malformed tasks table should be created");
             backup.close().await.expect("backup should close");
 
             let result = BackupService::new(paths.clone())

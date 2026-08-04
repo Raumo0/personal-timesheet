@@ -1,7 +1,12 @@
 import { describe, expect, test, vi } from "vitest";
 
 import type { SqlDatabase } from "../clients/database";
-import type { CatalogHierarchy } from "./catalog-lifecycle";
+import {
+  CatalogLifecycleError,
+  planCatalogLifecycle,
+  type CatalogHierarchy,
+  type LifecyclePlan,
+} from "./catalog-lifecycle";
 import {
   catalogLifecycleContract,
   type CatalogLifecycleHarnessOptions,
@@ -15,6 +20,7 @@ const appliedAt = "2026-08-05T10:30:00.000Z";
 interface DatabaseHarness {
   database: SqlDatabase;
   events: string[];
+  apply(plan: LifecyclePlan, appliedAt: string): void;
   snapshot(): CatalogHierarchy;
   replaceSnapshot(hierarchy: CatalogHierarchy): void;
 }
@@ -22,6 +28,7 @@ interface DatabaseHarness {
 function createDatabaseHarness(
   hierarchy: CatalogHierarchy,
   applyFailure?: () => unknown | undefined,
+  rollbackFailure?: () => unknown | undefined,
 ): DatabaseHarness {
   let committed = structuredClone(hierarchy);
   let transaction: CatalogHierarchy | undefined;
@@ -49,6 +56,8 @@ function createDatabaseHarness(
       }
       if (query === "ROLLBACK") {
         events.push("ROLLBACK");
+        const failure = rollbackFailure?.();
+        if (failure !== undefined) throw failure;
         transaction = undefined;
         return { rowsAffected: 0 };
       }
@@ -76,6 +85,39 @@ function createDatabaseHarness(
   return {
     database,
     events,
+    apply: (plan, appliedAt) => {
+      events.push("INVOKE apply_catalog_lifecycle");
+      const currentPlan = planCatalogLifecycle(committed, {
+        operation: plan.operation,
+        target: plan.target,
+      });
+      if (!samePlan(plan, currentPlan)) throw new Error("stale-plan: hierarchy changed");
+
+      const failure = applyFailure?.();
+      if (failure !== undefined) {
+        const rollback = rollbackFailure?.();
+        if (rollback !== undefined) {
+          throw new Error(
+            `Lifecycle change was not saved: ${String(failure)}. Transaction rollback also failed: ${String(rollback)}.`,
+          );
+        }
+        throw failure;
+      }
+
+      const nextArchivedAt = plan.operation === "archive" ? appliedAt : null;
+      for (const record of plan.records) {
+        const rows =
+          record.kind === "client"
+            ? committed.clients
+            : record.kind === "project"
+              ? committed.projects
+              : committed.tasks;
+        const row = rows.find((candidate) => candidate.id === record.id);
+        if (!row) throw new Error("stale-plan: record disappeared");
+        row.archivedAt = nextArchivedAt;
+        row.updatedAt = appliedAt;
+      }
+    },
     snapshot: () => structuredClone(committed),
     replaceSnapshot: (next) => {
       committed = structuredClone(next);
@@ -86,12 +128,23 @@ function createDatabaseHarness(
 
 function createLifecycleHarness(
   hierarchy: CatalogHierarchy,
-  options: CatalogLifecycleHarnessOptions = {},
+  options: CatalogLifecycleHarnessOptions & {
+    rollbackFailure?: () => unknown | undefined;
+  } = {},
 ) {
-  const storage = createDatabaseHarness(hierarchy, options.applyFailure);
+  const storage = createDatabaseHarness(
+    hierarchy,
+    options.applyFailure,
+    options.rollbackFailure,
+  );
   const lifecycle = new SqliteCatalogLifecycle({
     getDatabase: async () => storage.database,
-    now: options.now,
+    invoke: async <T>(command: string, args?: Record<string, unknown>) => {
+      expect(command).toBe("apply_catalog_lifecycle");
+      const { plan } = args as { plan: LifecyclePlan };
+      storage.apply(plan, appliedAt);
+      return undefined as T;
+    },
   });
   return { lifecycle, storage };
 }
@@ -140,7 +193,7 @@ describe("SQLite lifecycle transaction boundary", () => {
       ),
       ["client-1"],
     );
-    for (const [query] of storage.database.select.mock.calls) {
+    for (const [query] of vi.mocked(storage.database.select).mock.calls) {
       expect(query).not.toMatch(/normalized_name|currency_code|hourly_rate|created_at|updated_at/);
     }
   });
@@ -158,28 +211,7 @@ describe("SQLite lifecycle transaction boundary", () => {
 
     await lifecycle.apply(plan);
 
-    expect(storage.events).toEqual([
-      "BEGIN",
-      "SELECT clients",
-      "SELECT projects",
-      "SELECT tasks",
-      "UPDATE clients",
-      "UPDATE projects",
-      "UPDATE tasks",
-      "COMMIT",
-    ]);
-    expect(storage.database.execute).toHaveBeenCalledWith(
-      expect.stringContaining("UPDATE clients"),
-      [null, appliedAt, "client-1"],
-    );
-    expect(storage.database.execute).toHaveBeenCalledWith(
-      expect.stringContaining("UPDATE projects"),
-      [null, appliedAt, "project-1"],
-    );
-    expect(storage.database.execute).toHaveBeenCalledWith(
-      expect.stringContaining("UPDATE tasks"),
-      [null, appliedAt, "task-1"],
-    );
+    expect(storage.events).toEqual(["INVOKE apply_catalog_lifecycle"]);
     expect(storage.snapshot().tasks[1].archivedAt).toBe(archivedAt);
     expect(storage.database.select).toHaveBeenNthCalledWith(
       1,
@@ -196,21 +228,21 @@ describe("SQLite lifecycle transaction boundary", () => {
       expect.stringMatching(/FROM tasks\s+WHERE id = \$1/),
       ["task-1"],
     );
-    expect(storage.database.select).toHaveBeenNthCalledWith(
-      4,
-      expect.stringMatching(/FROM clients[\s\S]*tasks\.id = \$1/),
-      ["task-1"],
-    );
-    expect(storage.database.select).toHaveBeenNthCalledWith(
-      5,
-      expect.stringMatching(/FROM projects[\s\S]*tasks\.id = \$1/),
-      ["task-1"],
-    );
-    expect(storage.database.select).toHaveBeenNthCalledWith(
-      6,
-      expect.stringMatching(/FROM tasks\s+WHERE id = \$1/),
-      ["task-1"],
-    );
+  });
+
+  test("applies confirmed lifecycle plans through the native transaction command", async () => {
+    const { lifecycle, storage } = createLifecycleHarness(activeHierarchy(), {
+      now: () => new Date(appliedAt),
+    });
+    const plan = await lifecycle.preview({
+      operation: "archive",
+      target: { kind: "client", id: "client-1" },
+    });
+    storage.events.length = 0;
+
+    await lifecycle.apply(plan);
+
+    expect(storage.events).toEqual(["INVOKE apply_catalog_lifecycle"]);
   });
 
   test("rolls back every write and maps an update failure to persistence", async () => {
@@ -230,18 +262,52 @@ describe("SQLite lifecycle transaction boundary", () => {
     });
     storage.events.length = 0;
 
-    await expect(lifecycle.apply(plan)).rejects.toMatchObject({
-      code: "persistence",
-    });
-    expect(storage.events).toEqual([
-      "BEGIN",
-      "SELECT clients",
-      "SELECT projects",
-      "SELECT tasks",
-      "UPDATE clients",
-      "ROLLBACK",
-    ]);
+    const error = await lifecycle.apply(plan).catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ code: "persistence" });
+    expect((error as Error).message).toContain("database locked");
+    expect(storage.events).toEqual(["INVOKE apply_catalog_lifecycle"]);
     expect(storage.snapshot()).toEqual(hierarchy);
+  });
+
+  test("shows a string persistence failure from the local driver", async () => {
+    const { lifecycle } = createLifecycleHarness(activeHierarchy(), {
+      applyFailure: () => "database is locked",
+    });
+    const plan = await lifecycle.preview({
+      operation: "archive",
+      target: { kind: "client", id: "client-1" },
+    });
+
+    const error = await lifecycle.apply(plan).catch((caught: unknown) => caught);
+
+    expect((error as Error).message).toContain("database is locked");
+  });
+
+  test("exposes the original apply failure when rollback also fails", async () => {
+    const applyFailure = new Error("database locked");
+    const rollbackFailure = new Error("rollback connection lost");
+    const { lifecycle, storage } = createLifecycleHarness(activeHierarchy(), {
+      now: () => new Date(appliedAt),
+      applyFailure: () => applyFailure,
+      rollbackFailure: () => rollbackFailure,
+    });
+    const plan = await lifecycle.preview({
+      operation: "archive",
+      target: { kind: "client", id: "client-1" },
+    });
+    storage.events.length = 0;
+
+    const error = await lifecycle.apply(plan).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(CatalogLifecycleError);
+    expect((error as CatalogLifecycleError).code).toBe("persistence");
+    expect((error as CatalogLifecycleError).message).toContain(
+      applyFailure.message,
+    );
+    expect((error as CatalogLifecycleError).message).toContain(
+      rollbackFailure.message,
+    );
+    expect(storage.events).toEqual(["INVOKE apply_catalog_lifecycle"]);
   });
 
   test("rolls back a stale scope before timestamp or update execution", async () => {
@@ -273,13 +339,7 @@ describe("SQLite lifecycle transaction boundary", () => {
     await expect(lifecycle.apply(plan)).rejects.toMatchObject({
       code: "stale-plan",
     });
-    expect(storage.events).toEqual([
-      "BEGIN",
-      "SELECT clients",
-      "SELECT projects",
-      "SELECT tasks",
-      "ROLLBACK",
-    ]);
+    expect(storage.events).toEqual(["INVOKE apply_catalog_lifecycle"]);
     expect(now).not.toHaveBeenCalled();
     expect(storage.snapshot()).toEqual(changed);
   });
@@ -380,6 +440,25 @@ function taskRow(task: CatalogHierarchy["tasks"][number]) {
     name: task.name,
     archived_at: task.archivedAt,
   };
+}
+
+function samePlan(expected: LifecyclePlan, current: LifecyclePlan): boolean {
+  return (
+    expected.operation === current.operation &&
+    expected.target.kind === current.target.kind &&
+    expected.target.id === current.target.id &&
+    expected.impactDescription === current.impactDescription &&
+    expected.records.length === current.records.length &&
+    expected.records.every((record, index) => {
+      const candidate = current.records[index];
+      return (
+        candidate?.kind === record.kind &&
+        candidate.id === record.id &&
+        candidate.name === record.name &&
+        candidate.archivedAt === record.archivedAt
+      );
+    })
+  );
 }
 
 function activeHierarchy(): CatalogHierarchy {

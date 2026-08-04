@@ -82,14 +82,6 @@ export class InMemoryProjectCatalog implements ProjectCatalog {
     return structuredClone(project);
   }
 
-  async archive(clientId: string, id: string): Promise<void> {
-    this.throwConfiguredFailure();
-    const project = this.findActiveProject(clientId, id);
-    const now = this.now().toISOString();
-    project.archivedAt = now;
-    project.updatedAt = now;
-  }
-
   private findActiveProject(clientId: string, id: string): Project {
     const project = this.projects.find(
       (candidate) =>

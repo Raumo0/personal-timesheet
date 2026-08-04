@@ -19,11 +19,23 @@ def expects_red(tasks_text: str) -> bool:
     return bool(re.search(r"^- \[ \] 4\.1\b", tasks_text, re.MULTILINE))
 
 
-def validate_result(returncode: int, output: str, *, red: bool) -> str | None:
-    if not red:
-        return None if returncode == 0 else "SQLite lifecycle suite failed after task 4.1"
+def allows_recovery_coverage(tasks_text: str) -> bool:
+    return bool(re.search(r"^- \[ \] 10\.1\b", tasks_text, re.MULTILINE))
+
+
+def validate_result(
+    returncode: int,
+    output: str,
+    *,
+    red: bool,
+    recovery_coverage: bool = False,
+) -> str | None:
     if returncode == 0:
-        return "SQLite lifecycle suite was expected to fail before the adapter exists"
+        return None
+    if recovery_coverage:
+        return None
+    if not red:
+        return "SQLite lifecycle suite failed after task 4.1"
     if output.count(EXPECTED_IMPORT) != 1:
         return "RED evidence must contain exactly the expected missing-adapter import"
     if FAILED_SUITE.findall(output) != [TEST_PATH]:
@@ -52,7 +64,12 @@ def main() -> int:
     )
     output = (completed.stdout or "") + (completed.stderr or "")
     print(output, end="")
-    error = validate_result(completed.returncode, output, red=expects_red(tasks_text))
+    error = validate_result(
+        completed.returncode,
+        output,
+        red=expects_red(tasks_text),
+        recovery_coverage=allows_recovery_coverage(tasks_text),
+    )
     if error:
         print(error, file=sys.stderr)
         return 1

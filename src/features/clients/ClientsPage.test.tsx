@@ -72,9 +72,6 @@ function lifecycleHarness(options: {
     get: async () => lifecycle.snapshot().clients[0],
     create: async () => client(),
     update: async () => client(),
-    archive: async () => {
-      throw new Error("Direct catalog archive must not be used");
-    },
   };
   return { catalog, lifecycle };
 }
@@ -97,7 +94,6 @@ describe("Clients page", () => {
       get: async () => client(),
       create: async () => client(),
       update: async () => client(),
-      archive: async () => undefined,
     };
 
     render(<ClientsPage catalog={catalog} />);
@@ -205,9 +201,11 @@ describe("Clients page", () => {
 
   test("requires archival confirmation and respects cancel", async () => {
     const user = userEvent.setup();
+    const { catalog, lifecycle } = lifecycleHarness();
     render(
       <ClientsPage
-        catalog={new InMemoryClientCatalog({ clients: [client()] })}
+        catalog={catalog}
+        lifecycle={lifecycle}
       />,
     );
     await screen.findByText("Acme Studio");
@@ -239,7 +237,6 @@ describe("Clients page", () => {
       get: async () => client(),
       create: async () => client(),
       update: async () => client(),
-      archive: async () => undefined,
     };
     const user = userEvent.setup();
     render(<ClientsPage catalog={catalog} />);
@@ -260,7 +257,6 @@ describe("Clients page", () => {
         throw new Error("The local change was not saved");
       },
       update: async () => client(),
-      archive: async () => undefined,
     };
     const user = userEvent.setup();
     render(<ClientsPage catalog={catalog} />);

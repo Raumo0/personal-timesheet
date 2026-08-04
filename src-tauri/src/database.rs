@@ -256,12 +256,11 @@ mod tests {
 
             apply_migration(&mut connection, migration.sql).await;
 
-            let projects: Vec<(String, Option<String>)> = sqlx::query_as(
-                "SELECT id, archived_at FROM projects ORDER BY id",
-            )
-            .fetch_all(&mut connection)
-            .await
-            .expect("normalized projects should be readable");
+            let projects: Vec<(String, Option<String>)> =
+                sqlx::query_as("SELECT id, archived_at FROM projects ORDER BY id")
+                    .fetch_all(&mut connection)
+                    .await
+                    .expect("normalized projects should be readable");
             assert_eq!(
                 projects,
                 vec![

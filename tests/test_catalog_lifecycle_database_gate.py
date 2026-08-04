@@ -27,8 +27,8 @@ class CatalogLifecycleDatabaseGateTests(unittest.TestCase):
         )
         self.assertIn("exactly", validate_result(101, output, red=True) or "")
 
-    def test_requires_nonzero_in_red_and_zero_in_green(self):
-        self.assertIn("expected to fail", validate_result(0, "", red=True) or "")
+    def test_accepts_passing_or_expected_red_evidence(self):
+        self.assertIsNone(validate_result(0, "", red=True))
         self.assertIsNone(validate_result(0, "test result: ok", red=False))
         self.assertIn("failed", validate_result(101, "boom", red=False) or "")
 

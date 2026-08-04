@@ -26,5 +26,4 @@ export interface ProjectCatalog {
   get(clientId: string, id: string): Promise<Project>;
   create(clientId: string, command: ProjectCommand): Promise<Project>;
   update(clientId: string, id: string, command: ProjectCommand): Promise<Project>;
-  archive(clientId: string, id: string): Promise<void>;
 }

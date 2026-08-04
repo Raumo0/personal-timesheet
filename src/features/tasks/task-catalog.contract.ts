@@ -52,19 +52,5 @@ export function taskCatalogContract(
       ).resolves.toMatchObject({ projectId: "project-2" });
     });
 
-    test("archives without deleting and keeps lists separate", async () => {
-      const catalog = createCatalog();
-      const task = await catalog.create("project-1", {
-        name: "Discovery",
-        hourlyRateOverrideMinor: null,
-      });
-
-      await catalog.archive("project-1", task.id);
-
-      await expect(catalog.list("project-1", "active")).resolves.toEqual([]);
-      await expect(catalog.list("project-1", "archived")).resolves.toMatchObject([
-        { id: task.id, archivedAt: expect.any(String) },
-      ]);
-    });
   });
 }

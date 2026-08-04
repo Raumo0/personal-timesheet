@@ -23,6 +23,12 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
+import type {
+  CatalogLifecycle,
+  LifecycleOperation,
+  LifecyclePlan,
+  LifecycleRequest,
+} from "../catalog-lifecycle/catalog-lifecycle";
 import { formatRate, type Client } from "../clients/client";
 import type { Project } from "../projects/project";
 import { resolveTaskRate, type Task, type TaskCommand } from "./task";
@@ -33,18 +39,30 @@ interface TasksPageProps {
   client: Client;
   project: Project;
   catalog: TaskCatalog;
+  lifecycle?: CatalogLifecycle;
 }
 
-export function TasksPage({ client, project, catalog }: TasksPageProps) {
+export function TasksPage({
+  client,
+  project,
+  catalog,
+  lifecycle,
+}: TasksPageProps) {
   const [filter, setFilter] = useState<TaskList>("active");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [status, setStatus] = useState<"loading" | "loaded" | "error">("loading");
   const [formOpen, setFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task>();
   const [archiveTask, setArchiveTask] = useState<Task>();
+  const [lifecyclePlan, setLifecyclePlan] = useState<LifecyclePlan>();
+  const [retryRequest, setRetryRequest] = useState<LifecycleRequest>();
   const [mutationError, setMutationError] = useState<string>();
   const loadRequest = useRef(0);
+  const lifecycleInitiator = useRef<HTMLButtonElement | null>(null);
   const isReadOnly = client.archivedAt !== null || project.archivedAt !== null;
+  const showActions =
+    (!isReadOnly && filter === "active") ||
+    (filter === "archived" && lifecycle !== undefined);
 
   const loadTasks = useCallback(async () => {
     const request = ++loadRequest.current;
@@ -74,18 +92,75 @@ export function TasksPage({ client, project, catalog }: TasksPageProps) {
   }
 
   async function confirmArchive() {
-    if (!archiveTask) return;
+    if (!archiveTask || !lifecycle || !lifecyclePlan) return;
     setMutationError(undefined);
     try {
-      await catalog.archive(project.id, archiveTask.id);
+      await lifecycle.apply(lifecyclePlan);
       setArchiveTask(undefined);
+      setLifecyclePlan(undefined);
+      setRetryRequest(undefined);
       await loadTasks();
     } catch (error) {
       setMutationError(
-        error instanceof Error ? error.message : "The task was not archived",
+        error instanceof Error
+          ? error.message
+          : lifecyclePlan?.operation === "restore"
+            ? "The task was not restored"
+            : "The task was not archived",
       );
+      if (lifecyclePlan) {
+        setRetryRequest({
+          operation: lifecyclePlan.operation,
+          target: lifecyclePlan.target,
+        });
+      }
       setArchiveTask(undefined);
+      setLifecyclePlan(undefined);
+      restoreLifecycleFocus();
     }
+  }
+
+  async function requestLifecycle(
+    targetTask: Task,
+    operation: LifecycleOperation,
+    initiator?: HTMLButtonElement,
+  ) {
+    if (!lifecycle) {
+      return;
+    }
+    if (initiator) lifecycleInitiator.current = initiator;
+    const request: LifecycleRequest = {
+      operation,
+      target: { kind: "task", id: targetTask.id },
+    };
+    setMutationError(undefined);
+    try {
+      const plan = await lifecycle.preview(request);
+      setLifecyclePlan(plan);
+      setArchiveTask(targetTask);
+      setRetryRequest(undefined);
+    } catch (error) {
+      setMutationError(
+        error instanceof Error
+          ? error.message
+          : "The lifecycle change could not be prepared",
+      );
+      setRetryRequest(request);
+      restoreLifecycleFocus();
+    }
+  }
+
+  async function retryLifecycle() {
+    if (!lifecycle || !retryRequest) return;
+    const targetTask = tasks.find(
+      (candidate) => candidate.id === retryRequest.target.id,
+    );
+    if (!targetTask) return;
+    await requestLifecycle(targetTask, retryRequest.operation);
+  }
+
+  function restoreLifecycleFocus() {
+    queueMicrotask(() => lifecycleInitiator.current?.focus());
   }
 
   function openCreateForm() {
@@ -151,8 +226,21 @@ export function TasksPage({ client, project, catalog }: TasksPageProps) {
         </div>
 
         {mutationError && (
-          <div className="border-b bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
-            {mutationError}
+          <div
+            className="flex items-center justify-between gap-4 border-b bg-destructive/10 px-4 py-3 text-sm text-destructive"
+            role="alert"
+          >
+            <span>{mutationError}</span>
+            {retryRequest && (
+              <Button
+                onClick={() => void retryLifecycle()}
+                size="sm"
+                variant="outline"
+              >
+                <RotateCcw aria-hidden="true" />
+                Retry
+              </Button>
+            )}
           </div>
         )}
 
@@ -204,7 +292,7 @@ export function TasksPage({ client, project, catalog }: TasksPageProps) {
                 <TableHead className="h-11 w-36">Rate mode</TableHead>
                 <TableHead className="h-11 w-48">Rate source</TableHead>
                 <TableHead className="h-11 w-40 pr-4 text-right">Effective hourly rate</TableHead>
-                {!isReadOnly && filter === "active" && (
+                {showActions && (
                   <TableHead className="h-11 w-24 pr-4">
                     <span className="sr-only">Actions</span>
                   </TableHead>
@@ -238,28 +326,53 @@ export function TasksPage({ client, project, catalog }: TasksPageProps) {
                         <span className="font-normal text-muted-foreground">Not set</span>
                       )}
                     </TableCell>
-                    {!isReadOnly && filter === "active" && (
+                    {showActions && (
                       <TableCell className="py-3 pr-4">
                         <div className="flex justify-end gap-1">
-                          <Button
-                            aria-label={`Edit ${task.name}`}
-                            onClick={() => {
-                              setEditingTask(task);
-                              setFormOpen(true);
-                            }}
-                            size="icon-sm"
-                            variant="ghost"
-                          >
-                            <Pencil aria-hidden="true" />
-                          </Button>
-                          <Button
-                            aria-label={`Archive ${task.name}`}
-                            onClick={() => setArchiveTask(task)}
-                            size="icon-sm"
-                            variant="ghost"
-                          >
-                            <Archive aria-hidden="true" />
-                          </Button>
+                          {filter === "active" ? (
+                            <>
+                              <Button
+                                aria-label={`Edit ${task.name}`}
+                                onClick={() => {
+                                  setEditingTask(task);
+                                  setFormOpen(true);
+                                }}
+                                size="icon-sm"
+                                variant="ghost"
+                              >
+                                <Pencil aria-hidden="true" />
+                              </Button>
+                              <Button
+                                aria-label={`Archive ${task.name}`}
+                                onClick={(event) =>
+                                  void requestLifecycle(
+                                    task,
+                                    "archive",
+                                    event.currentTarget,
+                                  )
+                                }
+                                size="icon-sm"
+                                variant="ghost"
+                              >
+                                <Archive aria-hidden="true" />
+                              </Button>
+                            </>
+                          ) : (
+                            <Button
+                              aria-label={`Restore ${task.name}`}
+                              onClick={(event) =>
+                                void requestLifecycle(
+                                  task,
+                                  "restore",
+                                  event.currentTarget,
+                                )
+                              }
+                              size="icon-sm"
+                              variant="ghost"
+                            >
+                              <RotateCcw aria-hidden="true" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     )}
@@ -285,21 +398,36 @@ export function TasksPage({ client, project, catalog }: TasksPageProps) {
 
       <AlertDialog
         onOpenChange={(open) => {
-          if (!open) setArchiveTask(undefined);
+          if (!open) {
+            setArchiveTask(undefined);
+            setLifecyclePlan(undefined);
+            restoreLifecycleFocus();
+          }
         }}
         open={Boolean(archiveTask)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Archive {archiveTask?.name}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {lifecyclePlan?.operation === "restore" ? "Restore" : "Archive"}{" "}
+              {archiveTask?.name}?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              The task will leave the active list but remain available in archived records.
+              {lifecyclePlan?.impactDescription ??
+                "The task will leave the active list but remain available in archived records."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void confirmArchive()} variant="destructive">
-              Archive task
+            <AlertDialogAction
+              onClick={() => void confirmArchive()}
+              variant={
+                lifecyclePlan?.operation === "restore" ? "default" : "destructive"
+              }
+            >
+              {lifecyclePlan?.operation === "restore"
+                ? "Restore task"
+                : "Archive task"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

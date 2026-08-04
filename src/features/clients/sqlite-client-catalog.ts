@@ -229,22 +229,6 @@ export class SqliteClientCatalog implements ClientCatalog {
     });
   }
 
-  async archive(id: string): Promise<void> {
-    return this.translateErrors(async () => {
-      const timestamp = this.now().toISOString();
-      const database = await this.getDatabase();
-      const result = await database.execute(
-        `UPDATE clients
-         SET archived_at = $1, updated_at = $1
-         WHERE id = $2 AND archived_at IS NULL`,
-        [timestamp, id],
-      );
-      if (result.rowsAffected === 0) {
-        throw new ClientCatalogError("not-found", "Client was not found");
-      }
-    });
-  }
-
   private async translateErrors<T>(operation: () => Promise<T>): Promise<T> {
     try {
       return await operation();

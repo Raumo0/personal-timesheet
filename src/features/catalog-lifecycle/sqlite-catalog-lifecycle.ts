@@ -1,3 +1,5 @@
+import { invoke } from "@tauri-apps/api/core";
+
 import { getClientDatabase, type SqlDatabase } from "../clients/database";
 import {
   CatalogLifecycleError,
@@ -10,8 +12,10 @@ import {
 
 interface SqliteCatalogLifecycleOptions {
   getDatabase?: () => Promise<SqlDatabase>;
-  now?: () => Date;
+  invoke?: Invoke;
 }
+
+type Invoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
 
 type LifecycleTarget = LifecycleRequest["target"];
 
@@ -25,11 +29,11 @@ const placeholderTimestamp = "1970-01-01T00:00:00.000Z";
 
 export class SqliteCatalogLifecycle implements CatalogLifecycle {
   private readonly getDatabase: () => Promise<SqlDatabase>;
-  private readonly now: () => Date;
+  private readonly invoke: Invoke;
 
   constructor(options: SqliteCatalogLifecycleOptions = {}) {
     this.getDatabase = options.getDatabase ?? getClientDatabase;
-    this.now = options.now ?? (() => new Date());
+    this.invoke = options.invoke ?? invoke;
   }
 
   async preview(request: LifecycleRequest): Promise<LifecyclePlan> {
@@ -39,41 +43,16 @@ export class SqliteCatalogLifecycle implements CatalogLifecycle {
   }
 
   async apply(plan: LifecyclePlan): Promise<void> {
-    const database = await this.openDatabase();
     try {
-      await database.execute("BEGIN");
+      await this.invoke("apply_catalog_lifecycle", {
+        plan,
+      });
     } catch (cause) {
-      throw persistenceError("Lifecycle transaction could not begin", cause);
-    }
-
-    try {
-      const hierarchy = await loadHierarchy(database, plan.operation, plan.target);
-      const currentPlan = recomputePlan(hierarchy, plan);
-      if (!samePlan(plan, currentPlan)) throw stalePlanError();
-
-      const appliedAt = this.now().toISOString();
-      const nextArchivedAt = plan.operation === "archive" ? appliedAt : null;
-      for (const record of plan.records) {
-        const table = tableFor(record.kind);
-        const result = await database.execute(
-          `UPDATE ${table} SET archived_at = $1, updated_at = $2 WHERE id = $3`,
-          [nextArchivedAt, appliedAt, record.id],
-        );
-        if (result.rowsAffected !== 1) throw stalePlanError();
-      }
-
-      await database.execute("COMMIT");
-    } catch (caught) {
-      try {
-        await database.execute("ROLLBACK");
-      } catch (rollbackCause) {
-        throw persistenceError(
-          "Lifecycle change failed and the transaction could not be rolled back",
-          rollbackCause,
-        );
-      }
-      if (caught instanceof CatalogLifecycleError) throw caught;
-      throw persistenceError("Lifecycle change was not saved", caught);
+      if (isStalePlanFailure(cause)) throw stalePlanError();
+      throw persistenceError(
+        `Lifecycle change was not saved: ${errorMessage(cause)}.`,
+        cause,
+      );
     }
   }
 
@@ -83,6 +62,19 @@ export class SqliteCatalogLifecycle implements CatalogLifecycle {
     } catch (cause) {
       throw persistenceError("Local catalog data is unavailable", cause);
     }
+  }
+}
+
+function errorMessage(cause: unknown): string {
+  if (cause instanceof Error && cause.message) return cause.message;
+  if (typeof cause === "string" && cause) return cause;
+  try {
+    const serialized = JSON.stringify(cause);
+    return serialized && serialized !== "{}"
+      ? serialized
+      : "Unknown local persistence error";
+  } catch {
+    return "Unknown local persistence error";
   }
 }
 
@@ -214,53 +206,15 @@ function nullableString(row: Record<string, unknown>, key: string): string | nul
   return value;
 }
 
-function recomputePlan(
-  hierarchy: CatalogHierarchy,
-  expected: LifecyclePlan,
-): LifecyclePlan {
-  try {
-    return planCatalogLifecycle(hierarchy, {
-      operation: expected.operation,
-      target: expected.target,
-    });
-  } catch {
-    throw stalePlanError();
-  }
-}
-
-function samePlan(expected: LifecyclePlan, current: LifecyclePlan): boolean {
-  if (
-    expected.operation !== current.operation ||
-    expected.target.kind !== current.target.kind ||
-    expected.target.id !== current.target.id ||
-    expected.impactDescription !== current.impactDescription ||
-    expected.records.length !== current.records.length
-  ) {
-    return false;
-  }
-  return expected.records.every((record, index) => {
-    const candidate = current.records[index];
-    return (
-      candidate !== undefined &&
-      record.kind === candidate.kind &&
-      record.id === candidate.id &&
-      record.name === candidate.name &&
-      record.archivedAt === candidate.archivedAt
-    );
-  });
-}
-
-function tableFor(kind: "client" | "project" | "task"): string {
-  if (kind === "client") return "clients";
-  if (kind === "project") return "projects";
-  return "tasks";
-}
-
 function stalePlanError(): CatalogLifecycleError {
   return new CatalogLifecycleError(
     "stale-plan",
     "Lifecycle plan is stale; preview the current hierarchy and try again",
   );
+}
+
+function isStalePlanFailure(cause: unknown): boolean {
+  return errorMessage(cause).startsWith("stale-plan:");
 }
 
 function persistenceError(message: string, cause: unknown): CatalogLifecycleError {

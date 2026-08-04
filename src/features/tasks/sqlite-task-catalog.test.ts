@@ -49,19 +49,6 @@ function createDatabase(initialRows: Array<typeof inheritedRow> = []) {
         return { rowsAffected: 1 };
       }
 
-      if (query.includes("SET archived_at")) {
-        const [archivedAt, id, projectId] = values;
-        const row = rows.find(
-          (candidate) =>
-            candidate.id === id &&
-            candidate.project_id === projectId &&
-            candidate.archived_at === null,
-        );
-        if (!row) return { rowsAffected: 0 };
-        row.archived_at = String(archivedAt);
-        row.updated_at = String(archivedAt);
-        return { rowsAffected: 1 };
-      }
 
       if (query.includes("UPDATE tasks")) {
         const [name, normalizedName, override, updatedAt, id, projectId] = values;
@@ -158,7 +145,7 @@ describe("SQLite task catalog persistence", () => {
     );
   });
 
-  test("scopes update and archive statements to both task and project", async () => {
+  test("scopes update statements to both task and project", async () => {
     const database = createDatabase([inheritedRow]);
     const catalog = new SqliteTaskCatalog({
       getDatabase: async () => database,
@@ -174,14 +161,6 @@ describe("SQLite task catalog persistence", () => {
         /UPDATE tasks[\s\S]*WHERE id = \$5 AND project_id = \$6 AND archived_at IS NULL/,
       ),
       ["Research", "research", 0, now, "task-1", "project-1"],
-    );
-
-    await catalog.archive("project-1", "task-1");
-    expect(database.execute).toHaveBeenLastCalledWith(
-      expect.stringMatching(
-        /UPDATE tasks[\s\S]*WHERE id = \$2 AND project_id = \$3 AND archived_at IS NULL/,
-      ),
-      [now, "task-1", "project-1"],
     );
   });
 

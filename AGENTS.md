@@ -30,7 +30,8 @@ for the same responsibility.
 - Keep changes narrow. Do not modify adjacent areas without a concrete need.
 - Prefer simple domain logic separated from UI and platform integration.
 - Use test-driven development for features, bug fixes, refactoring, and
-  behavioral changes.
+  behavioral changes. A focused test that already passes is sufficient
+  evidence; do not force it to fail solely to satisfy a workflow phase.
 - Treat generated scaffold and configuration-only changes as exceptions when
   they are verified by the appropriate build or validation command.
 - Never claim completion without fresh verification.

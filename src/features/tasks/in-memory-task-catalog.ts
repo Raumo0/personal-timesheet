@@ -71,14 +71,6 @@ export class InMemoryTaskCatalog implements TaskCatalog {
     return structuredClone(task);
   }
 
-  async archive(projectId: string, id: string): Promise<void> {
-    this.throwConfiguredFailure();
-    const task = this.findActiveTask(projectId, id);
-    const now = this.now().toISOString();
-    task.archivedAt = now;
-    task.updatedAt = now;
-  }
-
   private findActiveTask(projectId: string, id: string): Task {
     const task = this.tasks.find(
       (candidate) =>

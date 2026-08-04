@@ -25,5 +25,4 @@ export interface TaskCatalog {
   list(projectId: string, filter: TaskList): Promise<Task[]>;
   create(projectId: string, command: TaskCommand): Promise<Task>;
   update(projectId: string, id: string, command: TaskCommand): Promise<Task>;
-  archive(projectId: string, id: string): Promise<void>;
 }

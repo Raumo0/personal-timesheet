@@ -23,6 +23,12 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
+import type {
+  CatalogLifecycle,
+  LifecycleOperation,
+  LifecyclePlan,
+  LifecycleRequest,
+} from "../catalog-lifecycle/catalog-lifecycle";
 import { formatRate, type Client } from "../clients/client";
 import { resolveProjectRate, type Project, type ProjectCommand } from "./project";
 import type { ProjectCatalog, ProjectList } from "./project-catalog";
@@ -31,18 +37,25 @@ import { ProjectForm } from "./ProjectForm";
 interface ProjectsPageProps {
   client: Client;
   catalog: ProjectCatalog;
+  lifecycle?: CatalogLifecycle;
 }
 
-export function ProjectsPage({ client, catalog }: ProjectsPageProps) {
+export function ProjectsPage({ client, catalog, lifecycle }: ProjectsPageProps) {
   const [filter, setFilter] = useState<ProjectList>("active");
   const [projects, setProjects] = useState<Project[]>([]);
   const [status, setStatus] = useState<"loading" | "loaded" | "error">("loading");
   const [formOpen, setFormOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project>();
   const [archiveProject, setArchiveProject] = useState<Project>();
+  const [lifecyclePlan, setLifecyclePlan] = useState<LifecyclePlan>();
+  const [retryRequest, setRetryRequest] = useState<LifecycleRequest>();
   const [mutationError, setMutationError] = useState<string>();
   const loadRequest = useRef(0);
+  const lifecycleInitiator = useRef<HTMLButtonElement | null>(null);
   const isReadOnly = client.archivedAt !== null;
+  const showActions =
+    (!isReadOnly && filter === "active") ||
+    (filter === "archived" && lifecycle !== undefined);
 
   const loadProjects = useCallback(async () => {
     const request = ++loadRequest.current;
@@ -72,18 +85,75 @@ export function ProjectsPage({ client, catalog }: ProjectsPageProps) {
   }
 
   async function confirmArchive() {
-    if (!archiveProject) return;
+    if (!archiveProject || !lifecycle || !lifecyclePlan) return;
     setMutationError(undefined);
     try {
-      await catalog.archive(client.id, archiveProject.id);
+      await lifecycle.apply(lifecyclePlan);
       setArchiveProject(undefined);
+      setLifecyclePlan(undefined);
+      setRetryRequest(undefined);
       await loadProjects();
     } catch (error) {
       setMutationError(
-        error instanceof Error ? error.message : "The project was not archived",
+        error instanceof Error
+          ? error.message
+          : lifecyclePlan?.operation === "restore"
+            ? "The project was not restored"
+            : "The project was not archived",
       );
+      if (lifecyclePlan) {
+        setRetryRequest({
+          operation: lifecyclePlan.operation,
+          target: lifecyclePlan.target,
+        });
+      }
       setArchiveProject(undefined);
+      setLifecyclePlan(undefined);
+      restoreLifecycleFocus();
     }
+  }
+
+  async function requestLifecycle(
+    targetProject: Project,
+    operation: LifecycleOperation,
+    initiator?: HTMLButtonElement,
+  ) {
+    if (!lifecycle) {
+      return;
+    }
+    if (initiator) lifecycleInitiator.current = initiator;
+    const request: LifecycleRequest = {
+      operation,
+      target: { kind: "project", id: targetProject.id },
+    };
+    setMutationError(undefined);
+    try {
+      const plan = await lifecycle.preview(request);
+      setLifecyclePlan(plan);
+      setArchiveProject(targetProject);
+      setRetryRequest(undefined);
+    } catch (error) {
+      setMutationError(
+        error instanceof Error
+          ? error.message
+          : "The lifecycle change could not be prepared",
+      );
+      setRetryRequest(request);
+      restoreLifecycleFocus();
+    }
+  }
+
+  async function retryLifecycle() {
+    if (!lifecycle || !retryRequest) return;
+    const targetProject = projects.find(
+      (candidate) => candidate.id === retryRequest.target.id,
+    );
+    if (!targetProject) return;
+    await requestLifecycle(targetProject, retryRequest.operation);
+  }
+
+  function restoreLifecycleFocus() {
+    queueMicrotask(() => lifecycleInitiator.current?.focus());
   }
 
   function openCreateForm() {
@@ -136,8 +206,21 @@ export function ProjectsPage({ client, catalog }: ProjectsPageProps) {
         </div>
 
         {mutationError && (
-          <div className="border-b bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
-            {mutationError}
+          <div
+            className="flex items-center justify-between gap-4 border-b bg-destructive/10 px-4 py-3 text-sm text-destructive"
+            role="alert"
+          >
+            <span>{mutationError}</span>
+            {retryRequest && (
+              <Button
+                onClick={() => void retryLifecycle()}
+                size="sm"
+                variant="outline"
+              >
+                <RotateCcw aria-hidden="true" />
+                Retry
+              </Button>
+            )}
           </div>
         )}
 
@@ -189,7 +272,7 @@ export function ProjectsPage({ client, catalog }: ProjectsPageProps) {
                 <TableHead className="h-11 w-36">Rate mode</TableHead>
                 <TableHead className="h-11 w-48">Rate source</TableHead>
                 <TableHead className="h-11 w-40 pr-4 text-right">Effective hourly rate</TableHead>
-                {!isReadOnly && filter === "active" && (
+                {showActions && (
                   <TableHead className="h-11 w-24 pr-4">
                     <span className="sr-only">Actions</span>
                   </TableHead>
@@ -227,28 +310,53 @@ export function ProjectsPage({ client, catalog }: ProjectsPageProps) {
                         <span className="font-normal text-muted-foreground">Not set</span>
                       )}
                     </TableCell>
-                    {!isReadOnly && filter === "active" && (
+                    {showActions && (
                       <TableCell className="py-3 pr-4">
                         <div className="flex justify-end gap-1">
-                          <Button
-                            aria-label={`Edit ${project.name}`}
-                            onClick={() => {
-                              setEditingProject(project);
-                              setFormOpen(true);
-                            }}
-                            size="icon-sm"
-                            variant="ghost"
-                          >
-                            <Pencil aria-hidden="true" />
-                          </Button>
-                          <Button
-                            aria-label={`Archive ${project.name}`}
-                            onClick={() => setArchiveProject(project)}
-                            size="icon-sm"
-                            variant="ghost"
-                          >
-                            <Archive aria-hidden="true" />
-                          </Button>
+                          {filter === "active" ? (
+                            <>
+                              <Button
+                                aria-label={`Edit ${project.name}`}
+                                onClick={() => {
+                                  setEditingProject(project);
+                                  setFormOpen(true);
+                                }}
+                                size="icon-sm"
+                                variant="ghost"
+                              >
+                                <Pencil aria-hidden="true" />
+                              </Button>
+                              <Button
+                                aria-label={`Archive ${project.name}`}
+                                onClick={(event) =>
+                                  void requestLifecycle(
+                                    project,
+                                    "archive",
+                                    event.currentTarget,
+                                  )
+                                }
+                                size="icon-sm"
+                                variant="ghost"
+                              >
+                                <Archive aria-hidden="true" />
+                              </Button>
+                            </>
+                          ) : (
+                            <Button
+                              aria-label={`Restore ${project.name}`}
+                              onClick={(event) =>
+                                void requestLifecycle(
+                                  project,
+                                  "restore",
+                                  event.currentTarget,
+                                )
+                              }
+                              size="icon-sm"
+                              variant="ghost"
+                            >
+                              <RotateCcw aria-hidden="true" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     )}
@@ -273,21 +381,36 @@ export function ProjectsPage({ client, catalog }: ProjectsPageProps) {
 
       <AlertDialog
         onOpenChange={(open) => {
-          if (!open) setArchiveProject(undefined);
+          if (!open) {
+            setArchiveProject(undefined);
+            setLifecyclePlan(undefined);
+            restoreLifecycleFocus();
+          }
         }}
         open={Boolean(archiveProject)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Archive {archiveProject?.name}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {lifecyclePlan?.operation === "restore" ? "Restore" : "Archive"}{" "}
+              {archiveProject?.name}?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              The project will leave the active list but remain available in archived records.
+              {lifecyclePlan?.impactDescription ??
+                "The project will leave the active list but remain available in archived records."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void confirmArchive()} variant="destructive">
-              Archive project
+            <AlertDialogAction
+              onClick={() => void confirmArchive()}
+              variant={
+                lifecyclePlan?.operation === "restore" ? "default" : "destructive"
+              }
+            >
+              {lifecyclePlan?.operation === "restore"
+                ? "Restore project"
+                : "Archive project"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

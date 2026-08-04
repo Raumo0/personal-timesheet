@@ -4,7 +4,6 @@ import type { Client } from "../clients/client";
 import type { Project } from "../projects/project";
 import type { Task } from "../tasks/task";
 import {
-  CatalogLifecycleError,
   planCatalogLifecycle,
   type CatalogHierarchy,
   type LifecycleRecord,
@@ -372,7 +371,7 @@ test.each(["archive", "restore"] as const)(
         target: { kind: "project", id: "project-1" },
       }),
     ).toThrowError(
-      expect.objectContaining<CatalogLifecycleError>({ code: "invalid-hierarchy" }),
+      expect.objectContaining({ code: "invalid-hierarchy" }),
     );
   },
 );
@@ -390,7 +389,7 @@ test("rejects a Project whose Client identifier does not match any available Cli
       target: { kind: "project", id: "project-1" },
     }),
   ).toThrowError(
-    expect.objectContaining<CatalogLifecycleError>({ code: "invalid-hierarchy" }),
+    expect.objectContaining({ code: "invalid-hierarchy" }),
   );
 });
 
@@ -416,7 +415,7 @@ test.each(["archive", "restore"] as const)(
         target: { kind: "task", id: "task-1" },
       }),
     ).toThrowError(
-      expect.objectContaining<CatalogLifecycleError>({ code: "invalid-hierarchy" }),
+      expect.objectContaining({ code: "invalid-hierarchy" }),
     );
   },
 );
@@ -434,7 +433,7 @@ test("rejects a Task whose Project identifier does not match an available Projec
       target: { kind: "task", id: "task-1" },
     }),
   ).toThrowError(
-    expect.objectContaining<CatalogLifecycleError>({ code: "invalid-hierarchy" }),
+    expect.objectContaining({ code: "invalid-hierarchy" }),
   );
 });
 
@@ -460,7 +459,7 @@ test.each(["archive", "restore"] as const)(
         target: { kind: "task", id: "task-1" },
       }),
     ).toThrowError(
-      expect.objectContaining<CatalogLifecycleError>({ code: "invalid-hierarchy" }),
+      expect.objectContaining({ code: "invalid-hierarchy" }),
     );
   },
 );
@@ -472,6 +471,6 @@ test("keeps an absent requested target distinct from malformed hierarchy", () =>
       target: { kind: "task", id: "missing-task" },
     }),
   ).toThrowError(
-    expect.objectContaining<CatalogLifecycleError>({ code: "not-found" }),
+    expect.objectContaining({ code: "not-found" }),
   );
 });

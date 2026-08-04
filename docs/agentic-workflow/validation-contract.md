@@ -20,6 +20,11 @@ skill, CI workflow, or separate Validation Manifest.
 | 50 | catalog-lifecycle-database | path:openspec/changes/manage-catalog-archive-lifecycle | yes | 300 | `python3 tools/agentic_workflow/validate_catalog_lifecycle_database.py` |
 | 60 | catalog-lifecycle-sqlite | path:openspec/changes/manage-catalog-archive-lifecycle | yes | 300 | `python3 tools/agentic_workflow/validate_catalog_lifecycle_sqlite.py` |
 | 70 | catalog-lifecycle-clients | path:openspec/changes/manage-catalog-archive-lifecycle | yes | 300 | `python3 tools/agentic_workflow/validate_catalog_lifecycle_clients.py` |
+| 80 | catalog-lifecycle-projects | path:openspec/changes/manage-catalog-archive-lifecycle | yes | 300 | `python3 tools/agentic_workflow/validate_catalog_lifecycle_projects.py` |
+| 90 | catalog-lifecycle-tasks | path:openspec/changes/manage-catalog-archive-lifecycle | yes | 300 | `python3 tools/agentic_workflow/validate_catalog_lifecycle_tasks.py` |
+| 100 | catalog-lifecycle-app-shell | path:openspec/changes/manage-catalog-archive-lifecycle | yes | 300 | `python3 tools/agentic_workflow/validate_catalog_lifecycle_app_shell.py` |
+| 110 | catalog-lifecycle-integrated | path:openspec/changes/manage-catalog-archive-lifecycle | yes | 900 | `python3 tools/agentic_workflow/validate_catalog_lifecycle_integrated.py` |
+| 120 | catalog-lifecycle-recovery | path:openspec/changes/manage-catalog-archive-lifecycle | yes | 300 | `python3 tools/agentic_workflow/validate_catalog_lifecycle_recovery.py` |
 
 ## Applicability
 
