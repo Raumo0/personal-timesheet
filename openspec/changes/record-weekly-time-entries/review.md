@@ -3,7 +3,7 @@
 ### Scope and inputs
 
 - Review one selected `tasks.md` checkbox at a time against its exact files,
-  focused RED/GREEN command, `proposal.md`, the weekly delta spec, and the
+  focused coverage-first command, its passing result, `proposal.md`, the weekly delta spec, and the
   relevant `design.md` decisions.
 - Inspect the current task-bound diff for local date-only arithmetic,
   Project-or-Task identity, positive-minute persistence, active-path checks,

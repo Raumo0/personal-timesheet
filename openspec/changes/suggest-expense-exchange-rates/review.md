@@ -3,7 +3,7 @@
 ### Scope and inputs
 
 - Review one selected `tasks.md` checkbox at a time against its exact files,
-  focused RED/GREEN command, `proposal.md`, the Expense delta spec, and relevant
+  focused coverage-first command, its passing result, `proposal.md`, the Expense delta spec, and relevant
   `design.md` decisions.
 - Inspect the task-bound diff for explicit-only network access, minimal request
   data, ECB series validation, one shared historical observation date, exact

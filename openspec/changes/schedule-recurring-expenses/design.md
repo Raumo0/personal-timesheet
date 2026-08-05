@@ -81,14 +81,16 @@ through a date, and complete one pending occurrence. The preview contains the
 new configuration, due identities, exact range/count, and same-target/date
 overlap summaries.
 
-The SQLite adapter evaluates and applies a plan in one transaction, rechecking
+The TypeScript adapter uses `SqlReadDatabase` to build an immutable typed plan.
+A named Rust `apply_recurring_expense_operation` command evaluates and applies
+that plan in one transaction, rechecking
 Schedule version, target lifecycle/currency, existing occurrence identities,
 and overlap state. The in-memory adapter and SQLite adapter share a behavioral
 contract. Cancellation applies nothing.
 
 Putting due generation in React was rejected because launch catch-up, preview,
 Retry, and SQLite idempotency would diverge. Exposing separate create/edit,
-backfill, and reconcile transactions was rejected because partial state could
+backfill, and reconcile transactions in the frontend was rejected because partial state could
 enable a Schedule without its confirmed past occurrences.
 
 ### Distinguish continuous catch-up from configuration backfill
@@ -134,6 +136,11 @@ records and ready Expenses. Restoring a Client or Project leaves Schedules
 disabled. Restoring one pending occurrence includes only that occurrence and
 required ancestors. A linked ready Expense continues to use ordinary Expense
 lifecycle; its occurrence link is provenance, not another visible lifecycle.
+
+This extends the existing native `apply_catalog_lifecycle` plan and command.
+Recurring lifecycle writes are not added to the recurring store, and neither
+frontend transaction control nor the independent-statement executor may be used
+for multi-step Schedule operations.
 
 Making Schedule archiveable was rejected because enable/disable already
 expresses whether the recurrence runs. Re-enabling after catalog restore stays

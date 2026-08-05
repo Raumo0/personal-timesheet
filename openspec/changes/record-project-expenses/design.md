@@ -83,6 +83,17 @@ archive planner includes Expense descendants for Client and Project targets;
 its restore planner includes a selected Expense and only required ancestors.
 This keeps one hierarchy write authority and one atomic transaction.
 
+The SQLite adapter performs bounded queries through `SqlReadDatabase` and
+builds an immutable Expense mutation plan. A named Rust
+`apply_expense_mutation` command rechecks the target path and expected Expense
+state, applies create or update through one live transaction, and returns a
+typed result. Frontend transaction control and the independent-statement
+executor are rejected because neither can preserve the multi-step invariants.
+
+Expense lifecycle changes extend the existing native `apply_catalog_lifecycle`
+plan and command. They do not add lifecycle writes to `ExpenseStore` or restore
+transactional SQL to the frontend adapter.
+
 Adding lifecycle methods to both ExpenseStore and CatalogLifecycle was rejected
 because callers could bypass cascade and stale-plan validation.
 
@@ -143,8 +154,9 @@ backup action.
 1. Deepen the money module behind compatibility wrappers before adding Expense
    callers.
 2. Add migration 6 and backup validation without modifying migrations 1–5.
-3. Implement and contract-test ExpenseStore, then extend CatalogLifecycle plans
-   and adapters with Expense nodes.
+3. Implement and contract-test ExpenseStore plus its named Rust apply command,
+   then extend CatalogLifecycle plans and the existing native lifecycle command
+   with Expense nodes.
 4. Replace the Expenses placeholder and wire the SQLite store plus lifecycle
    seam through the existing application composition root.
 5. Roll back application code by leaving the additive table and retained data

@@ -2,9 +2,11 @@
 
 ### Deterministic evidence
 
-- For each selected task, run the exact focused command named in `tasks.md`.
-  RED tasks must record the expected failing behavior before implementation;
-  GREEN/REFACTOR tasks must record the same focused command passing afterward.
+- For each selected coverage-first task, run the exact focused command named in
+  `tasks.md`. A passing focused test is sufficient when the behavior already
+  exists. Otherwise record the expected behavior-specific RED, complete the
+  indented GREEN/REFACTOR continuation within the same checkbox, and record the
+  focused command passing before canonical validation.
 - Task 10.1 must record passing results for `pnpm test`, `pnpm build`,
   `cargo test --manifest-path src-tauri/Cargo.toml`,
   `cargo check --manifest-path src-tauri/Cargo.toml`,

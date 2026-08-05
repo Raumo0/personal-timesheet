@@ -2,9 +2,11 @@
 
 ### Deterministic evidence
 
-- For each selected task, run the exact focused command named in `tasks.md`.
-  RED tasks must record the expected failure before implementation;
-  GREEN/REFACTOR tasks must record the same focused command passing afterward.
+- For each selected coverage-first task, run the exact focused command named in
+  `tasks.md`. A passing focused test is sufficient when the behavior already
+  exists. Otherwise record the expected behavior-specific RED, complete the
+  indented GREEN/REFACTOR continuation within the same checkbox, and record the
+  focused command passing before canonical validation.
 - Native provider tests must use injected HTTP fixtures and prove exact request
   parameters, shared observation dates, EUR direct/inverse/cross direction,
   HUF coverage, 12-decimal output, error translation, and bounded timeouts

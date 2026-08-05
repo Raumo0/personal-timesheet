@@ -93,6 +93,11 @@ transaction rate.
 Replacing source provenance with `manual` after an edit was rejected because it
 would hide which reference informed the user's final value.
 
+Persisting provenance reuses the base change's named native Expense mutation
+boundary. This change adds no second write path, frontend transaction, or use of
+the independent-statement executor; its own native command remains read-only
+with respect to local Expense data and only returns the ECB suggestion.
+
 ### Translate native failures into stable recovery states
 
 Define stable error codes for unavailable network, unsupported currency,

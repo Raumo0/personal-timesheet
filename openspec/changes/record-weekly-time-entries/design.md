@@ -3,8 +3,10 @@
 The shell already reserves `/` for a compact Timesheet surface but currently
 renders a placeholder. Client, Project, and planned Task records use durable IDs
 and `archived_at`; `manage-catalog-archive-lifecycle` establishes the active-path
-and targeted-restore contract. All feature persistence uses one local SQLite
-connection and additive migrations. See `proposal.md` and
+and targeted-restore contract. Raw frontend SQLite access is read-only by
+default; multi-step writes use named Rust commands that own one live connection
+and transaction. Additive migrations remain the persistence model. See
+`proposal.md` and
 `specs/weekly-time-entry/spec.md` for the approved behavior.
 
 ## Goals / Non-Goals
@@ -60,8 +62,10 @@ Migration 5 adds `time_entries` with an ID, local `entry_date`, positive
 indexes enforce one direct-Project or Task entry per date. Blank and `0:00`
 delete the row, so zero is never persisted.
 
-The store validates the selected hierarchy is fully active and calculates the
-complete date total in the same transaction as each upsert. A write that would
+The TypeScript store builds an immutable mutation plan from read-only queries.
+A named Rust command rechecks that the selected hierarchy is fully active and
+calculates the complete date total in the same transaction as each upsert or
+delete. A write that would
 exceed 1440 minutes or race with archival changes nothing. Task hierarchy and
 labels are resolved by joining the catalog rather than duplicating `project_id`,
 Client IDs, names, or archive markers in `time_entries`.
@@ -77,6 +81,12 @@ list selectable active work as a grouped hierarchy, upsert a positive duration,
 and delete an entry. In-memory and SQLite adapters share one behavioral
 contract. The snapshot returns saved entries even when their hierarchy is
 archived, plus enough current state to render those rows read-only.
+
+The SQLite adapter uses `SqlReadDatabase` for bounded queries and invokes only a
+named `apply_weekly_time_entry_mutation` command for writes. The command accepts
+a typed expected-state plan rather than SQL, rechecks it in Rust, and returns the
+saved result or a stable stale-plan/persistence error. A frontend transaction or
+the independent-statement executor is not an allowed implementation.
 
 Composing every Client/Project/Task list in the page was rejected because it
 would create route-level N+1 queries and duplicate eligibility joins. Folding
@@ -170,7 +180,8 @@ required.
 
 1. Add migration 5 after catalog lifecycle migration 4 without modifying prior
    migrations; fresh databases replay the complete sequence.
-2. Add the store and domain rules before replacing the Timesheet placeholder.
+2. Add the store, immutable mutation plan, and named Rust apply command before
+   replacing the Timesheet placeholder.
 3. Wire lifecycle restore and navigation guards only after core entry/save
    behavior is deterministic.
 4. Roll back application code by leaving the additive table and saved entries
