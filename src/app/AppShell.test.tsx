@@ -1,7 +1,7 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { MemoryRouter } from "react-router";
+import { createHashRouter, MemoryRouter, RouterProvider } from "react-router";
 
 import App from "@/App";
 import { AppShell } from "@/app/AppShell";
@@ -12,11 +12,33 @@ import { InMemoryClientCatalog } from "@/features/clients/in-memory-client-catal
 import { InMemoryProjectCatalog } from "@/features/projects/in-memory-project-catalog";
 import { InMemoryTaskCatalog } from "@/features/tasks/in-memory-task-catalog";
 import { InMemoryBackupService } from "@/features/backup/in-memory-backup-service";
+import { InMemoryWeeklyTimeEntryStore } from "@/features/time-entry/in-memory-weekly-time-entry-store";
+import type { TimeEntryNativeWindow } from "@/features/time-entry/time-entry-navigation-coordinator";
+import type { WeeklyTimeEntryStore } from "@/features/time-entry/weekly-time-entry-store";
+import { weekFromMonday } from "@/features/time-entry/weekly-time-entry";
 
 const timestamp = "2026-08-03T08:00:00.000Z";
 const client = { id: "client-1", name: "Acme", currencyCode: "EUR", hourlyRateMinor: 12_500, createdAt: timestamp, updatedAt: timestamp, archivedAt: null };
 const project = { id: "project-1", clientId: client.id, name: "Website", hourlyRateOverrideMinor: null, createdAt: timestamp, updatedAt: timestamp, archivedAt: null };
 const task = { id: "task-1", projectId: project.id, name: "Research", hourlyRateOverrideMinor: null, createdAt: timestamp, updatedAt: timestamp, archivedAt: null };
+const weeklySeed = {
+  clients: [{
+    id: client.id,
+    name: client.name,
+    archivedAt: null,
+    projects: [{
+      id: project.id,
+      name: project.name,
+      archivedAt: null,
+      tasks: [{ id: task.id, name: task.name, archivedAt: null }],
+    }],
+  }],
+  entries: [{
+    date: weekFromMonday("2026-08-03").dates[0],
+    reference: { kind: "task" as const, taskId: task.id },
+    minutes: 60,
+  }],
+};
 
 function renderTaskRoute(
   path = "/clients/client-1/projects/project-1/tasks",
@@ -84,6 +106,44 @@ function renderApp() {
   return render(<App />);
 }
 
+function renderTimesheet(
+  weeklyStore: WeeklyTimeEntryStore,
+  nativeWindow?: TimeEntryNativeWindow,
+  useHashRouter = false,
+) {
+  vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }));
+  const shell = (
+    <AppShell
+      backupService={new InMemoryBackupService()}
+      clientCatalog={new InMemoryClientCatalog()}
+      lifecycle={new InMemoryCatalogLifecycle({
+        hierarchy: { clients: [], projects: [], tasks: [] },
+      })}
+      nativeWindow={nativeWindow}
+      projectCatalog={new InMemoryProjectCatalog()}
+      taskCatalog={new InMemoryTaskCatalog()}
+      weeklyStore={weeklyStore}
+    />
+  );
+  return render(
+    <ThemeProvider>
+      <TooltipProvider>
+        {useHashRouter ? (
+          <RouterProvider
+            router={createHashRouter([{ path: "*", element: shell }])}
+          />
+        ) : (
+          <MemoryRouter>{shell}</MemoryRouter>
+        )}
+      </TooltipProvider>
+    </ThemeProvider>,
+  );
+}
+
 afterEach(() => {
   cleanup();
   window.location.hash = "";
@@ -93,11 +153,11 @@ afterEach(() => {
 });
 
 describe("application shell", () => {
-  test("opens Timesheet with all primary destinations available", () => {
+  test("opens Timesheet with all primary destinations available", async () => {
     renderApp();
 
     expect(
-      screen.getByRole("heading", { name: "Timesheet" }),
+      await screen.findByRole("heading", { name: "Timesheet" }),
     ).toBeInTheDocument();
 
     const navigation = screen.getByRole("navigation", {
@@ -492,5 +552,159 @@ describe("application shell", () => {
     );
 
     expect(screen.getByRole("main")).toHaveFocus();
+  });
+
+  test("opens the lazy Timesheet route with compact density and injected weekly data", async () => {
+    renderTimesheet(new InMemoryWeeklyTimeEntryStore(weeklySeed), undefined, true);
+
+    expect(screen.getByRole("main")).toHaveAttribute("data-density", "compact");
+    expect(await screen.findByRole("heading", { name: "Timesheet" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("row", { name: "Acme · Website · Research · Task" }),
+    ).toBeInTheDocument();
+  });
+
+  test("shows loading and recovers a failed Timesheet load on Retry", async () => {
+    const store = new InMemoryWeeklyTimeEntryStore(weeklySeed);
+    const loadWeek = store.loadWeek.bind(store);
+    vi.spyOn(store, "loadWeek")
+      .mockRejectedValueOnce(new Error("database unavailable"))
+      .mockImplementation(loadWeek);
+    const user = userEvent.setup();
+    renderTimesheet(store);
+
+    expect(screen.getByRole("status")).toHaveTextContent(/Opening timesheet|Loading timesheet/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Timesheet could not be loaded",
+    );
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByRole("heading", { name: "Timesheet" })).toBeInTheDocument();
+    expect(await screen.findByText("Research")).toBeInTheDocument();
+  });
+
+  test("coordinates guarded router navigation with Stay and Discard", async () => {
+    const user = userEvent.setup();
+    renderTimesheet(new InMemoryWeeklyTimeEntryStore(weeklySeed), undefined, true);
+    const input = await screen.findByRole("textbox", {
+      name: /Acme · Website · Research · Mon/,
+    });
+    await user.clear(input);
+    await user.type(input, "invalid");
+
+    await user.click(screen.getByRole("link", { name: "Reports" }));
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent("Leave Timesheet?");
+    await user.click(screen.getByRole("button", { name: "Stay" }));
+    expect(screen.getByRole("heading", { name: "Timesheet" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "Reports" }));
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(await screen.findByRole("heading", { name: "Reports" })).toBeInTheDocument();
+  });
+
+  test("guards HashRouter back navigation with Stay and Discard", async () => {
+    const user = userEvent.setup();
+    renderTimesheet(new InMemoryWeeklyTimeEntryStore(weeklySeed), undefined, true);
+    await screen.findByRole("heading", { name: "Timesheet" });
+    await user.click(screen.getByRole("link", { name: "Reports" }));
+    await user.click(screen.getByRole("link", { name: "Timesheet" }));
+    const input = await screen.findByRole("textbox", {
+      name: /Acme · Website · Research · Mon/,
+    });
+    await user.clear(input);
+    await user.type(input, "invalid");
+
+    act(() => window.history.back());
+
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent(
+      "Leave Timesheet?",
+    );
+    await user.click(screen.getByRole("button", { name: "Stay" }));
+    expect(screen.getByRole("heading", { name: "Timesheet" })).toBeInTheDocument();
+
+    act(() => window.history.back());
+    await user.click(await screen.findByRole("button", { name: "Discard changes" }));
+    expect(await screen.findByRole("heading", { name: "Reports" })).toBeInTheDocument();
+  });
+
+  test("allows an unguarded Tauri close to use the default close path", async () => {
+    let closeRequest: ((event: { preventDefault(): void }) => void) | undefined;
+    const nativeWindow: TimeEntryNativeWindow = {
+      destroy: vi.fn().mockResolvedValue(undefined),
+      onCloseRequested: vi.fn(async (handler) => {
+        closeRequest = handler;
+        return vi.fn();
+      }),
+    };
+    renderTimesheet(new InMemoryWeeklyTimeEntryStore(weeklySeed), nativeWindow);
+    await screen.findByRole("heading", { name: "Timesheet" });
+    await waitFor(() => expect(closeRequest).toBeDefined());
+    const preventDefault = vi.fn();
+
+    closeRequest?.({ preventDefault });
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(nativeWindow.destroy).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  test("keeps the native window and draft unchanged after Stay", async () => {
+    let closeRequest: ((event: { preventDefault(): void }) => void) | undefined;
+    const nativeWindow: TimeEntryNativeWindow = {
+      destroy: vi.fn().mockResolvedValue(undefined),
+      onCloseRequested: vi.fn(async (handler) => {
+        closeRequest = handler;
+        return vi.fn();
+      }),
+    };
+    const user = userEvent.setup();
+    renderTimesheet(new InMemoryWeeklyTimeEntryStore(weeklySeed), nativeWindow);
+    const input = await screen.findByRole("textbox", {
+      name: /Acme · Website · Research · Mon/,
+    });
+    await user.clear(input);
+    await user.type(input, "invalid");
+    await waitFor(() => expect(closeRequest).toBeDefined());
+
+    closeRequest?.({ preventDefault: vi.fn() });
+    await user.click(await screen.findByRole("button", { name: "Stay" }));
+
+    expect(input).toHaveValue("invalid");
+    expect(nativeWindow.destroy).not.toHaveBeenCalled();
+  });
+
+  test("destroys once after Discard without re-entering native close", async () => {
+    let closeRequest: ((event: { preventDefault(): void }) => void) | undefined;
+    let closeEvents = 0;
+    const nativeWindow: TimeEntryNativeWindow = {
+      destroy: vi.fn().mockResolvedValue(undefined),
+      onCloseRequested: vi.fn(async (handler) => {
+        closeRequest = (event) => {
+          closeEvents += 1;
+          handler(event);
+        };
+        return vi.fn();
+      }),
+    };
+    const user = userEvent.setup();
+    renderTimesheet(new InMemoryWeeklyTimeEntryStore(weeklySeed), nativeWindow);
+    const input = await screen.findByRole("textbox", {
+      name: /Acme · Website · Research · Mon/,
+    });
+    await user.clear(input);
+    await user.type(input, "invalid");
+    await waitFor(() => expect(closeRequest).toBeDefined());
+    const preventDefault = vi.fn();
+
+    closeRequest?.({ preventDefault });
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent(
+      "Close Personal Timesheet?",
+    );
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+
+    expect(nativeWindow.destroy).toHaveBeenCalledOnce();
+    expect(closeEvents).toBe(1);
+    expect(nativeWindow.onCloseRequested).toHaveBeenCalledOnce();
   });
 });

@@ -1,4 +1,12 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   ChevronsLeft,
   ChevronsRight,
@@ -9,7 +17,10 @@ import {
   NavLink,
   Route,
   Routes,
+  UNSAFE_DataRouterContext,
+  useBlocker,
   useLocation,
+  useNavigate,
   useParams,
 } from "react-router";
 
@@ -26,6 +37,11 @@ import type { CatalogLifecycle } from "@/features/catalog-lifecycle/catalog-life
 import type { ProjectCatalog } from "@/features/projects/project-catalog";
 import type { TaskCatalog } from "@/features/tasks/task-catalog";
 import type { BackupService } from "@/features/backup/backup-service";
+import type { WeeklyTimeEntryStore } from "@/features/time-entry/weekly-time-entry-store";
+import {
+  AppTimeEntryNavigationCoordinator,
+  type TimeEntryNativeWindow,
+} from "@/features/time-entry/time-entry-navigation-coordinator";
 
 import {
   navigationDestinations,
@@ -46,6 +62,32 @@ const SettingsDataPage = lazy(() =>
 );
 const ProjectsPage = lazy(() => import("@/features/projects/ProjectsPage").then((module) => ({ default: module.ProjectsPage })));
 const TasksPage = lazy(() => import("@/features/tasks/TasksPage").then((module) => ({ default: module.TasksPage })));
+const WeeklyTimesheetPage = lazy(() =>
+  import("@/features/time-entry/WeeklyTimesheetPage").then((module) => ({
+    default: module.WeeklyTimesheetPage,
+  })),
+);
+
+function DataRouterNavigationGuard({
+  coordinator,
+}: {
+  coordinator: AppTimeEntryNavigationCoordinator;
+}) {
+  const guard = useSyncExternalStore(
+    coordinator.subscribe,
+    coordinator.getGuardState,
+    coordinator.getGuardState,
+  );
+  const blocker = useBlocker(guard.shouldBlockRoute);
+  useEffect(() => {
+    if (blocker.state !== "blocked") return;
+    coordinator.requestRoute(
+      () => blocker.proceed(),
+      () => blocker.reset(),
+    );
+  }, [blocker, coordinator]);
+  return null;
+}
 
 function ProjectWorkspaceRoute({ clientCatalog, projectCatalog, lifecycle }: { clientCatalog: ClientCatalog; projectCatalog: ProjectCatalog; lifecycle?: CatalogLifecycle }) {
   const { clientId } = useParams();
@@ -180,15 +222,45 @@ export function AppShell({
   projectCatalog,
   taskCatalog,
   lifecycle,
+  nativeWindow,
+  weeklyStore,
 }: {
   backupService: BackupService;
   clientCatalog: ClientCatalog;
   projectCatalog: ProjectCatalog;
   taskCatalog: TaskCatalog;
   lifecycle?: CatalogLifecycle;
+  nativeWindow?: TimeEntryNativeWindow;
+  weeklyStore?: WeeklyTimeEntryStore;
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const navigationCoordinator = useMemo(
+    () => new AppTimeEntryNavigationCoordinator(),
+    [],
+  );
+  const hasDataRouter = useContext(UNSAFE_DataRouterContext) !== null;
+  useEffect(() => {
+    if (!nativeWindow) return;
+    let unlisten: (() => void) | undefined;
+    let active = true;
+    void nativeWindow
+      .onCloseRequested((event) => {
+        const blocked = navigationCoordinator.requestNativeClose(() => {
+          void nativeWindow.destroy();
+        });
+        if (blocked) event.preventDefault();
+      })
+      .then((removeListener) => {
+        if (active) unlisten = removeListener;
+        else removeListener();
+      });
+    return () => {
+      active = false;
+      unlisten?.();
+    };
+  }, [nativeWindow, navigationCoordinator]);
   const activeDestination =
     navigationDestinations.find(
       ({ path }) =>
@@ -197,7 +269,25 @@ export function AppShell({
     ) ?? navigationDestinations[0];
 
   return (
-    <div className="flex h-screen min-h-[640px] overflow-hidden bg-muted/35">
+    <>
+      {hasDataRouter ? (
+        <DataRouterNavigationGuard coordinator={navigationCoordinator} />
+      ) : null}
+      <div
+      className="flex h-screen min-h-[640px] overflow-hidden bg-muted/35"
+      onClickCapture={(event) => {
+        if (hasDataRouter || event.defaultPrevented || event.button !== 0) return;
+        const link = (event.target as Element).closest("a[href]");
+        if (!link) return;
+        const rawHref = link.getAttribute("href");
+        if (!rawHref || rawHref === "#main-content") return;
+        const href = rawHref.startsWith("#/") ? rawHref.slice(1) : rawHref;
+        if (href === location.pathname) return;
+        if (navigationCoordinator.requestRoute(() => void navigate(href))) {
+          event.preventDefault();
+        }
+      }}
+    >
       <a
         className="sr-only z-50 rounded-lg bg-background px-3 py-2 text-sm font-medium shadow-lg focus:not-sr-only focus:fixed focus:top-4 focus:left-4"
         href="#main-content"
@@ -306,7 +396,17 @@ export function AppShell({
                 <Route
                   key={destination.path}
                   element={
-                    destination.path === "/clients" ? (
+                    destination.path === "/" && weeklyStore ? (
+                      <Suspense
+                        fallback={<p role="status">Opening timesheet…</p>}
+                      >
+                        <WeeklyTimesheetPage
+                          lifecycle={lifecycle}
+                          navigationCoordinator={navigationCoordinator}
+                          store={weeklyStore}
+                        />
+                      </Suspense>
+                    ) : destination.path === "/clients" ? (
                       <Suspense
                         fallback={
                           <p className="text-sm text-muted-foreground" role="status">
@@ -338,6 +438,7 @@ export function AppShell({
           </div>
         </main>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

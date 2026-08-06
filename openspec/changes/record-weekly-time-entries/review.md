@@ -21,6 +21,15 @@
   requirement and confirm the broader frontend, Rust, OpenSpec, and diff checks.
   Treat unperformed native Tauri, close-guard, and appearance checks only as the
   limitations recorded in `validation.md`, never as passed evidence.
+- For task 13.1, inspect compact column sizing at the declared breakpoint,
+  overflow below it, zebra-row and totals contrast in both themes, visible and
+  non-color already-added selector state, unchanged repeated-row focus, and the
+  absence of inline validation text or row-height movement.
+- For task 14.1, trace the concrete Tauri close listener: unguarded requests must
+  use the default close path, Stay must preserve state, and Discard must invoke
+  exactly one terminal destruction operation without emitting a second guarded
+  close request. For task 15.1, reconcile these refinements with the complete
+  frontend, Rust, OpenSpec, transaction-boundary, and diff evidence.
 - Keep canonical execution state and reviewer reports under
   `.agentic-workflow/`; this planning artifact does not hold verdict evidence.
 

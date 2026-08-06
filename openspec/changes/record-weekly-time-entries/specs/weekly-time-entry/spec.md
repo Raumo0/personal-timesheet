@@ -52,6 +52,10 @@ active. It SHALL NOT create an implicit or automatic General Task.
 - **WHEN** the user selects a Project or Task already present in the displayed week
 - **THEN** the application focuses the existing row instead of creating a duplicate
 
+#### Scenario: Identify work already added to the week
+- **WHEN** the selector contains a Project or Task whose row is already present
+- **THEN** that option has a quiet tonal highlight plus a non-color `Already added` indication and remains selectable to focus the existing row
+
 #### Scenario: Open a week without entries
 - **WHEN** the displayed week has no saved time entries
 - **THEN** the Timesheet shows its header, selector, and zero totals without preloading catalog rows
@@ -85,6 +89,18 @@ Cells without saved entries SHALL appear blank rather than displaying zero.
 #### Scenario: Display an absent entry
 - **WHEN** no time entry is saved for a work item and date
 - **THEN** its cell is visually empty while contributing zero to totals
+
+#### Scenario: Fit the supported desktop workspace
+- **WHEN** the Timesheet content area is at least 1280 CSS pixels wide
+- **THEN** Work, all seven days, and Total are visible without horizontal scrolling, with Work approximately thirty percent narrower than the initial grid and duration controls sized for `H:MM`
+
+#### Scenario: Retain narrow-window access
+- **WHEN** the Timesheet content area is narrower than 1280 CSS pixels
+- **THEN** the complete grid remains accessible through horizontal scrolling without compressing duration controls below their usable width
+
+#### Scenario: Scan rows and totals
+- **WHEN** the weekly grid contains multiple work rows
+- **THEN** adjacent work rows use a subtle alternating neutral tone and the Total column plus Daily totals footer use one consistent emphasized treatment
 
 ### Requirement: Enter validated durations
 The application SHALL accept daily durations in `H:MM` format and persist them
@@ -132,6 +148,10 @@ leaves the cell. It SHALL expose one persistent status near week navigation as
 #### Scenario: Keep invalid input unsaved
 - **WHEN** Enter or blur occurs with an invalid duration
 - **THEN** the draft remains visible, the status is Unsaved changes, and local storage is not updated
+
+#### Scenario: Explain an invalid duration without resizing the grid
+- **WHEN** a cell contains an invalid duration
+- **THEN** the cell retains an error outline and the persistent save-status region announces `Invalid duration · Use H:MM, for example 1:30`, with no error text rendered under the cell and no change to row height
 
 #### Scenario: Save fails
 - **WHEN** local persistence rejects a valid change
@@ -196,6 +216,18 @@ safe default.
 #### Scenario: Discard unsaved changes
 - **WHEN** the user chooses Discard changes in the leave confirmation
 - **THEN** unsaved drafts are discarded and the requested navigation or close continues without altering saved entries
+
+#### Scenario: Close with no guarded work
+- **WHEN** the user requests native window close while no invalid, pending, or failed draft exists
+- **THEN** the application closes immediately without showing a confirmation
+
+#### Scenario: Close after staying
+- **WHEN** native close is guarded and the user chooses Stay
+- **THEN** the window remains open and the blocking draft is unchanged
+
+#### Scenario: Close after discarding
+- **WHEN** native close is guarded and the user chooses Discard changes
+- **THEN** the application discards the draft and completes the original close exactly once without re-entering the close guard
 
 ### Requirement: Handle archived work rows
 The application SHALL retain saved rows whose Client, Project, or Task later

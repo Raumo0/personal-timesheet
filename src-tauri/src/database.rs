@@ -115,12 +115,44 @@ pub fn client_migrations() -> Vec<Migration> {
         "#,
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 5,
+            description: "create weekly time entries",
+            sql: r#"
+            CREATE TABLE time_entries (
+                id TEXT PRIMARY KEY NOT NULL,
+                entry_date TEXT NOT NULL CHECK (
+                    length(entry_date) = 10
+                    AND entry_date = date(entry_date, '+0 days')
+                ),
+                duration_minutes INTEGER NOT NULL CHECK (
+                    typeof(duration_minutes) = 'integer'
+                    AND duration_minutes > 0
+                    AND duration_minutes <= 1440
+                ),
+                project_id TEXT REFERENCES projects(id),
+                task_id TEXT REFERENCES tasks(id),
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                CHECK ((project_id IS NOT NULL) != (task_id IS NOT NULL))
+            );
+
+            CREATE UNIQUE INDEX time_entries_project_date_unique
+                ON time_entries(project_id, entry_date)
+                WHERE project_id IS NOT NULL;
+
+            CREATE UNIQUE INDEX time_entries_task_date_unique
+                ON time_entries(task_id, entry_date)
+                WHERE task_id IS NOT NULL;
+        "#,
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
 #[cfg(test)]
 mod tests {
-    use sqlx::{Connection, SqliteConnection};
+    use sqlx::{Connection, Executor, SqliteConnection};
 
     use super::client_migrations;
 
@@ -129,6 +161,33 @@ mod tests {
             .execute(connection)
             .await
             .expect("migration should apply as one SQL unit");
+    }
+
+    async fn migration_five_database() -> SqliteConnection {
+        let mut connection = SqliteConnection::connect("sqlite::memory:")
+            .await
+            .expect("temporary SQLite database should open");
+        connection
+            .execute("PRAGMA foreign_keys = ON")
+            .await
+            .expect("foreign keys should be enabled");
+        for migration in client_migrations() {
+            apply_migration(&mut connection, migration.sql).await;
+        }
+        sqlx::raw_sql(
+            r#"
+            INSERT INTO clients VALUES
+              ('client-1', 'Client', 'client', 'EUR', NULL, 'created', 'updated', NULL);
+            INSERT INTO projects VALUES
+              ('project-1', 'client-1', 'Project', 'project', NULL, 'created', 'updated', NULL);
+            INSERT INTO tasks VALUES
+              ('task-1', 'project-1', 'Task', 'task', NULL, 'created', 'updated', NULL);
+            "#,
+        )
+        .execute(&mut connection)
+        .await
+        .expect("catalog fixture should insert");
+        connection
     }
 
     #[test]
@@ -288,6 +347,136 @@ mod tests {
                     ("task-6".into(), Some("2026-08-03T11:00:00Z".into())),
                 ],
             );
+        });
+    }
+
+    #[test]
+    fn fifth_migration_stores_project_or_task_minutes_and_timestamps() {
+        tauri::async_runtime::block_on(async {
+            let migrations = client_migrations();
+            assert_eq!(migrations[4].version, 5);
+
+            let mut connection = migration_five_database().await;
+            sqlx::query(
+                r#"INSERT INTO time_entries
+                   (id, entry_date, duration_minutes, project_id, task_id, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)"#,
+            )
+            .bind("entry-project")
+            .bind("2026-08-03")
+            .bind(1440_i64)
+            .bind("project-1")
+            .bind(Option::<String>::None)
+            .bind("2026-08-03T09:00:00.000Z")
+            .bind("2026-08-03T09:30:00.000Z")
+            .execute(&mut connection)
+            .await
+            .expect("valid direct project entry should insert");
+
+            let stored: (String, i64, Option<String>, Option<String>, String, String) =
+                sqlx::query_as(
+                    "SELECT entry_date, duration_minutes, project_id, task_id, created_at, updated_at FROM time_entries",
+                )
+                .fetch_one(&mut connection)
+                .await
+                .expect("stored entry should be readable");
+            assert_eq!(
+                stored,
+                (
+                    "2026-08-03".into(),
+                    1440,
+                    Some("project-1".into()),
+                    None,
+                    "2026-08-03T09:00:00.000Z".into(),
+                    "2026-08-03T09:30:00.000Z".into(),
+                )
+            );
+        });
+    }
+
+    #[test]
+    fn fifth_migration_rejects_invalid_dates_minutes_references_and_work_shape() {
+        tauri::async_runtime::block_on(async {
+            let mut connection = migration_five_database().await;
+
+            for (id, date, minutes, project_id, task_id) in [
+                ("zero", "2026-08-03", 0_i64, Some("project-1"), None),
+                ("too-large", "2026-08-03", 1441, Some("project-1"), None),
+                ("bad-date", "2026-02-30", 30, Some("project-1"), None),
+                ("neither", "2026-08-03", 30, None, None),
+                ("both", "2026-08-03", 30, Some("project-1"), Some("task-1")),
+                ("missing-project", "2026-08-03", 30, Some("missing"), None),
+                ("missing-task", "2026-08-03", 30, None, Some("missing")),
+            ] {
+                let result = sqlx::query(
+                    r#"INSERT INTO time_entries
+                       (id, entry_date, duration_minutes, project_id, task_id, created_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, 'created', 'updated')"#,
+                )
+                .bind(id)
+                .bind(date)
+                .bind(minutes)
+                .bind(project_id)
+                .bind(task_id)
+                .execute(&mut connection)
+                .await;
+                assert!(result.is_err(), "{id} should violate migration constraints");
+            }
+
+            let fractional_minutes = sqlx::query(
+                r#"INSERT INTO time_entries
+                   (id, entry_date, duration_minutes, project_id, task_id, created_at, updated_at)
+                   VALUES ('fractional', '2026-08-03', ?, 'project-1', NULL, 'created', 'updated')"#,
+            )
+            .bind(1.5_f64)
+            .execute(&mut connection)
+            .await;
+            assert!(
+                fractional_minutes.is_err(),
+                "fractional minutes should violate migration constraints"
+            );
+
+            let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM time_entries")
+                .fetch_one(&mut connection)
+                .await
+                .expect("entry count should be readable");
+            assert_eq!(count, 0, "failed inserts must leave no rows");
+        });
+    }
+
+    #[test]
+    fn fifth_migration_enforces_partial_uniqueness_and_restricts_parent_deletion() {
+        tauri::async_runtime::block_on(async {
+            let mut connection = migration_five_database().await;
+
+            for statement in [
+                "INSERT INTO time_entries VALUES ('project-entry', '2026-08-03', 30, 'project-1', NULL, 'created', 'updated')",
+                "INSERT INTO time_entries VALUES ('task-entry', '2026-08-03', 60, NULL, 'task-1', 'created', 'updated')",
+            ] {
+                sqlx::query(statement)
+                    .execute(&mut connection)
+                    .await
+                    .expect("one Project and one Task entry may share a date");
+            }
+
+            for duplicate in [
+                "INSERT INTO time_entries VALUES ('project-duplicate', '2026-08-03', 45, 'project-1', NULL, 'created', 'updated')",
+                "INSERT INTO time_entries VALUES ('task-duplicate', '2026-08-03', 45, NULL, 'task-1', 'created', 'updated')",
+            ] {
+                assert!(sqlx::query(duplicate)
+                    .execute(&mut connection)
+                    .await
+                    .is_err());
+            }
+
+            assert!(sqlx::query("DELETE FROM projects WHERE id = 'project-1'")
+                .execute(&mut connection)
+                .await
+                .is_err());
+            assert!(sqlx::query("DELETE FROM tasks WHERE id = 'task-1'")
+                .execute(&mut connection)
+                .await
+                .is_err());
         });
     }
 }

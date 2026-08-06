@@ -3,6 +3,7 @@ pub mod backup;
 pub mod catalog_lifecycle;
 pub mod client_update;
 mod database;
+pub mod weekly_time_entry;
 
 use std::path::Path;
 
@@ -94,6 +95,22 @@ async fn apply_client_update(
     .await
 }
 
+#[tauri::command]
+async fn apply_weekly_time_entry_mutation(
+    app: AppHandle,
+    plan: weekly_time_entry::WeeklyTimeEntryMutationPlan,
+) -> Result<(), String> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| format!("application data directory is unavailable: {error}"))?;
+    weekly_time_entry::apply_at_path(
+        &backup::BackupPaths::from_config_dir(&config_dir).live_database,
+        plan,
+    )
+    .await
+}
+
 fn application_context() -> tauri::Context<tauri::Wry> {
     tauri::generate_context!()
 }
@@ -115,7 +132,8 @@ pub fn run() {
             cancel_staged_restore,
             commit_staged_restore,
             apply_catalog_lifecycle,
-            apply_client_update
+            apply_client_update,
+            apply_weekly_time_entry_mutation
         ])
         .on_page_load(|webview, payload| {
             let window = webview.window();

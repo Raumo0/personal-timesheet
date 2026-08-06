@@ -23,6 +23,16 @@ edit was saved.
   repeated selection focuses the existing row.
 - Keep rows linked to archived hierarchy visible as `No longer active` and
   read-only, with `Restore to edit` using the catalog lifecycle operation.
+- Refine the dense ledger so the Work column and duration controls use only the
+  space they need, alternating rows are easier to scan, Total and Daily totals
+  share stronger emphasis, and already-added work is visibly identified in the
+  selector while repeated selection still focuses its existing row.
+- Keep duration-format guidance out of the table layout: the invalid cell keeps
+  its error outline while the persistent save-status region explains
+  `Invalid duration · Use H:MM, for example 1:30`.
+- Make native close reliable: an unguarded window closes immediately, Stay
+  preserves a blocking draft, and Discard changes closes without re-entering
+  the close guard.
 - Defer timer tracking, entry notes, week copying, billable values, reports,
   invoices, period locking, and automatically generated General Tasks.
 

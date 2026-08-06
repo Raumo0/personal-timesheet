@@ -156,6 +156,33 @@ copy, focus rings, dialogs, and error regions. A colorful calendar dashboard was
 rejected because the defining product object is a compact work ledger, not an
 analytics surface.
 
+The refined grid assigns explicit compact widths to Work, each `H:MM` day
+control, and Total so all nine columns fit a Timesheet content area of at least
+1280 CSS pixels. Narrower workspaces retain horizontal scrolling. Body rows use
+subtle alternating neutral tones, while the Total column and Daily totals footer
+share one stronger neutral treatment. Existing selector options remain
+selectable but gain a tonal highlight and a non-color `Already added` marker so
+repeated selection can still focus the existing row.
+
+Invalid duration guidance does not participate in cell layout. The cell keeps
+its error outline and an accessible description, while the persistent page
+status takes priority over ordinary save copy and announces
+`Invalid duration · Use H:MM, for example 1:30`. This avoids row-height changes,
+overlays, and per-cell toasts.
+
+### Complete a guarded native close without re-entry
+
+The Tauri close-request listener allows unguarded close to follow the API's
+default destruction path. A guarded request prevents that first event and opens
+the existing Stay/Discard dialog. Stay leaves the window and drafts unchanged.
+After Discard, the continuation destroys the native window directly rather than
+calling `close()` and producing another close-request event. The native-window
+adapter exposes this terminal operation explicitly, and focused tests cover
+unguarded close, Stay, and one-shot Discard completion.
+
+Calling `close()` again after Discard was rejected because it re-enters the same
+listener and can be blocked by stale or concurrently refreshed guard state.
+
 ### Extend backup compatibility for migration 5
 
 Backup validation recognizes the time-entry table only for migration-5 data and
