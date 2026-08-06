@@ -29,6 +29,12 @@ _Avoid_: Client rate, base rate
 A named body of work performed for exactly one client and available for direct
 time entry or further division into tasks.
 
+**Task**:
+A named work classification within exactly one project, such as Calls,
+Development, Design, or Research. A task classifies time and does not imply an
+assigned to-do or a monetary expense.
+_External invoice label_: Work category
+
 **Inherited hourly rate**:
 An hourly rate obtained from the nearest ancestor that defines one rather than
 entered on the current project or task.
