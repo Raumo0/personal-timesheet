@@ -37,6 +37,7 @@ import type { CatalogLifecycle } from "@/features/catalog-lifecycle/catalog-life
 import type { ProjectCatalog } from "@/features/projects/project-catalog";
 import type { TaskCatalog } from "@/features/tasks/task-catalog";
 import type { BackupService } from "@/features/backup/backup-service";
+import type { ExpenseStore } from "@/features/expenses/expense-store";
 import type { WeeklyTimeEntryStore } from "@/features/time-entry/weekly-time-entry-store";
 import {
   AppTimeEntryNavigationCoordinator,
@@ -65,6 +66,11 @@ const TasksPage = lazy(() => import("@/features/tasks/TasksPage").then((module) 
 const WeeklyTimesheetPage = lazy(() =>
   import("@/features/time-entry/WeeklyTimesheetPage").then((module) => ({
     default: module.WeeklyTimesheetPage,
+  })),
+);
+const ExpensesPage = lazy(() =>
+  import("@/features/expenses/ExpensesPage").then((module) => ({
+    default: module.ExpensesPage,
   })),
 );
 
@@ -219,6 +225,7 @@ function SidebarDestination({
 export function AppShell({
   backupService,
   clientCatalog,
+  expenseStore,
   projectCatalog,
   taskCatalog,
   lifecycle,
@@ -227,6 +234,7 @@ export function AppShell({
 }: {
   backupService: BackupService;
   clientCatalog: ClientCatalog;
+  expenseStore: ExpenseStore;
   projectCatalog: ProjectCatalog;
   taskCatalog: TaskCatalog;
   lifecycle?: CatalogLifecycle;
@@ -425,6 +433,16 @@ export function AppShell({
                         }
                       >
                         <SettingsDataPage service={backupService} />
+                      </Suspense>
+                    ) : destination.path === "/expenses" ? (
+                      <Suspense
+                        fallback={
+                          <p className="text-sm text-muted-foreground" role="status">
+                            Opening expenses…
+                          </p>
+                        }
+                      >
+                        <ExpensesPage lifecycle={lifecycle} store={expenseStore} />
                       </Suspense>
                     ) : (
                       <ProductPage destination={destination} />

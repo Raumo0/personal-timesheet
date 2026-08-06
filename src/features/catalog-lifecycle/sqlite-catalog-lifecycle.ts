@@ -27,6 +27,7 @@ interface HierarchyQuery {
   clients: string;
   projects?: string;
   tasks?: string;
+  expenses?: string;
 }
 
 const placeholderTimestamp = "1970-01-01T00:00:00.000Z";
@@ -91,12 +92,16 @@ async function loadHierarchy(
   let clientRows: unknown[];
   let projectRows: unknown[] = [];
   let taskRows: unknown[] = [];
+  let expenseRows: unknown[] = [];
   try {
     clientRows = await database.select(queries.clients, [target.id]);
     if (queries.projects) {
       projectRows = await database.select(queries.projects, [target.id]);
     }
     if (queries.tasks) taskRows = await database.select(queries.tasks, [target.id]);
+    if (queries.expenses) {
+      expenseRows = await database.select(queries.expenses, [target.id]);
+    }
   } catch (cause) {
     throw persistenceError("Catalog hierarchy could not be loaded", cause);
   }
@@ -106,6 +111,7 @@ async function loadHierarchy(
       clients: clientRows.map(clientFromLifecycleRow),
       projects: projectRows.map(projectFromLifecycleRow),
       tasks: taskRows.map(taskFromLifecycleRow),
+      expenses: expenseRows.map(expenseFromLifecycleRow),
     };
   } catch (cause) {
     throw new CatalogLifecycleError(
@@ -131,6 +137,10 @@ function hierarchyQueries(
         operation === "archive"
           ? `SELECT id, project_id, name, archived_at FROM tasks WHERE project_id IN (SELECT id FROM projects WHERE client_id = $1) ORDER BY id`
           : undefined,
+      expenses:
+        operation === "archive"
+          ? `SELECT expenses.id, expenses.client_id, expenses.project_id, expenses.description, expenses.archived_at FROM expenses LEFT JOIN projects ON projects.id = expenses.project_id WHERE expenses.client_id = $1 OR projects.client_id = $1 ORDER BY expenses.id`
+          : undefined,
     };
   }
   if (target.kind === "project") {
@@ -141,6 +151,17 @@ function hierarchyQueries(
         operation === "archive"
           ? `SELECT id, project_id, name, archived_at FROM tasks WHERE project_id = $1 ORDER BY id`
           : undefined,
+      expenses:
+        operation === "archive"
+          ? `SELECT id, client_id, project_id, description, archived_at FROM expenses WHERE project_id = $1 ORDER BY id`
+          : undefined,
+    };
+  }
+  if (target.kind === "expense") {
+    return {
+      clients: `SELECT clients.id, clients.name, clients.archived_at FROM expenses LEFT JOIN projects ON projects.id = expenses.project_id JOIN clients ON clients.id = COALESCE(expenses.client_id, projects.client_id) WHERE expenses.id = $1 ORDER BY clients.id`,
+      projects: `SELECT projects.id, projects.client_id, projects.name, projects.archived_at FROM projects JOIN expenses ON expenses.project_id = projects.id WHERE expenses.id = $1 ORDER BY projects.id`,
+      expenses: `SELECT id, client_id, project_id, description, archived_at FROM expenses WHERE id = $1 ORDER BY id`,
     };
   }
   return {
@@ -183,6 +204,36 @@ function taskFromLifecycleRow(row: unknown): CatalogHierarchy["tasks"][number] {
     projectId: requiredString(value, "project_id"),
     name: requiredString(value, "name"),
     hourlyRateOverrideMinor: null,
+    createdAt: placeholderTimestamp,
+    updatedAt: placeholderTimestamp,
+    archivedAt: nullableString(value, "archived_at"),
+  };
+}
+
+function expenseFromLifecycleRow(
+  row: unknown,
+): NonNullable<CatalogHierarchy["expenses"]>[number] {
+  const value = lifecycleRow(row);
+  const clientId = nullableString(value, "client_id");
+  const projectId = nullableString(value, "project_id");
+  if ((clientId === null) === (projectId === null)) {
+    throw new TypeError("Expense must reference exactly one Client or Project");
+  }
+  return {
+    id: requiredString(value, "id"),
+    target: clientId
+      ? { kind: "client", clientId }
+      : { kind: "project", projectId: projectId! },
+    expenseDate: "1970-01-01",
+    description: requiredString(value, "description"),
+    originalCurrencyCode: "EUR",
+    originalAmountMinor: 1,
+    billingCurrencyCode: "EUR",
+    billingAmountMinor: 1,
+    appliedRate: "1",
+    rateSource: "manual",
+    rateObservedOn: null,
+    rateManuallyAdjusted: false,
     createdAt: placeholderTimestamp,
     updatedAt: placeholderTimestamp,
     archivedAt: nullableString(value, "archived_at"),

@@ -19,6 +19,7 @@ pub struct LifecycleState {
     pub clients: Vec<(String, Option<String>, String)>,
     pub projects: Vec<(String, Option<String>, String)>,
     pub tasks: Vec<(String, Option<String>, String)>,
+    pub expenses: Vec<(String, Option<String>, String)>,
 }
 
 impl CatalogFixture {
@@ -58,6 +59,15 @@ impl CatalogFixture {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 archived_at TEXT
+            );
+            CREATE TABLE expenses (
+                id TEXT PRIMARY KEY NOT NULL,
+                client_id TEXT REFERENCES clients(id),
+                project_id TEXT REFERENCES projects(id),
+                description TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                archived_at TEXT,
+                CHECK ((client_id IS NOT NULL) != (project_id IS NOT NULL))
             );
             INSERT INTO clients VALUES
               ('client-1', 'Acme', 'acme', 'EUR', 12500, '2026-07-30T08:00:00.000Z', '2026-07-31T09:00:00.000Z', NULL);
@@ -129,10 +139,16 @@ impl CatalogFixture {
             .fetch_all(&mut connection)
             .await
             .expect("Task lifecycle state should be readable");
+        let expenses =
+            sqlx::query_as("SELECT id, archived_at, updated_at FROM expenses ORDER BY id")
+                .fetch_all(&mut connection)
+                .await
+                .expect("Expense lifecycle state should be readable");
         LifecycleState {
             clients,
             projects,
             tasks,
+            expenses,
         }
     }
 }

@@ -94,7 +94,9 @@ function findRecord(
       ? hierarchy.clients
       : record.kind === "project"
         ? hierarchy.projects
-        : hierarchy.tasks;
+        : record.kind === "task"
+          ? hierarchy.tasks
+          : (hierarchy.expenses ?? []);
   const found = records.find((candidate) => candidate.id === record.id);
   if (!found) {
     throw new CatalogLifecycleError(

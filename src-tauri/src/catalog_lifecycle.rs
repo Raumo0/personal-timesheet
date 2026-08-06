@@ -31,6 +31,7 @@ enum Kind {
     Client,
     Project,
     Task,
+    Expense,
 }
 
 #[derive(Clone, Deserialize, PartialEq)]
@@ -97,6 +98,7 @@ async fn apply_in_transaction(
             Kind::Client => "clients",
             Kind::Project => "projects",
             Kind::Task => "tasks",
+            Kind::Expense => "expenses",
         };
         let result = sqlx::query(&format!(
             "UPDATE {table} SET archived_at = ?, updated_at = ? WHERE id = ?"
@@ -123,6 +125,7 @@ async fn expected_records(
         Kind::Client => row(transaction, "SELECT id, name, archived_at FROM clients WHERE id = ?", &target.id, Kind::Client).await?,
         Kind::Project => row(transaction, "SELECT clients.id, clients.name, clients.archived_at FROM clients JOIN projects ON projects.client_id = clients.id WHERE projects.id = ?", &target.id, Kind::Client).await?,
         Kind::Task => row(transaction, "SELECT clients.id, clients.name, clients.archived_at FROM clients JOIN projects ON projects.client_id = clients.id JOIN tasks ON tasks.project_id = projects.id WHERE tasks.id = ?", &target.id, Kind::Client).await?,
+        Kind::Expense => row(transaction, "SELECT clients.id, clients.name, clients.archived_at FROM clients JOIN expenses ON expenses.client_id = clients.id WHERE expenses.id = ?1 UNION SELECT clients.id, clients.name, clients.archived_at FROM clients JOIN projects ON projects.client_id = clients.id JOIN expenses ON expenses.project_id = projects.id WHERE expenses.id = ?1", &target.id, Kind::Client).await?,
     };
     let mut records = Vec::new();
     let impact_description = match (&target.kind, operation) {
@@ -140,16 +143,23 @@ async fn expected_records(
             let tasks = rows(transaction, "SELECT tasks.id, tasks.name, tasks.archived_at FROM tasks JOIN projects ON projects.id = tasks.project_id WHERE projects.client_id = ? ORDER BY tasks.id", &target.id, Kind::Task).await?;
             let project_count = projects.len();
             let task_count = tasks.len();
+            let expenses = rows(transaction, "SELECT expenses.id, expenses.description, expenses.archived_at FROM expenses LEFT JOIN projects ON projects.id = expenses.project_id WHERE (expenses.client_id = ?1 OR projects.client_id = ?1) AND expenses.archived_at IS NULL ORDER BY expenses.id", &target.id, Kind::Expense).await?;
+            let expense_count = expenses.len();
             records.extend(projects.into_iter().filter(|row| row.archived_at.is_none()));
             records.extend(tasks.into_iter().filter(|row| row.archived_at.is_none()));
-            format!(
-                "Archive {} and every Project and Task beneath it ({} {}, {} {}).",
-                name,
-                project_count,
-                plural(project_count, "Project"),
-                task_count,
-                plural(task_count, "Task")
-            )
+            records.extend(expenses);
+            if expense_count > 0 {
+                format!("Archive {} and every Project, Task, and Expense beneath it ({} {}, {} {}, {} {}).", name, project_count, plural(project_count, "Project"), task_count, plural(task_count, "Task"), expense_count, plural(expense_count, "Expense"))
+            } else {
+                format!(
+                    "Archive {} and every Project and Task beneath it ({} {}, {} {}).",
+                    name,
+                    project_count,
+                    plural(project_count, "Project"),
+                    task_count,
+                    plural(task_count, "Task")
+                )
+            }
         }
         (Kind::Client, Operation::Restore) => {
             require_archived(&client)?;
@@ -176,12 +186,25 @@ async fn expected_records(
             )
             .await?;
             let task_count = tasks.len();
+            let expenses = rows(transaction, "SELECT id, description, archived_at FROM expenses WHERE project_id = ? AND archived_at IS NULL ORDER BY id", &target.id, Kind::Expense).await?;
+            let expense_count = expenses.len();
             records.extend(tasks.into_iter().filter(|row| row.archived_at.is_none()));
-            format!(
-                "Archive {name} and every Task beneath it ({} {}).",
-                task_count,
-                plural(task_count, "Task")
-            )
+            records.extend(expenses);
+            if expense_count > 0 {
+                format!(
+                    "Archive {name} and every Task and Expense beneath it ({} {}, {} {}).",
+                    task_count,
+                    plural(task_count, "Task"),
+                    expense_count,
+                    plural(expense_count, "Expense")
+                )
+            } else {
+                format!(
+                    "Archive {name} and every Task beneath it ({} {}).",
+                    task_count,
+                    plural(task_count, "Task")
+                )
+            }
         }
         (Kind::Project, Operation::Restore) => {
             let project = row(
@@ -247,6 +270,42 @@ async fn expected_records(
                 if names.len() == 1 { " only" } else { "" }
             )
         }
+        (Kind::Expense, operation) => {
+            let expense = row(
+                transaction,
+                "SELECT id, description, archived_at FROM expenses WHERE id = ?",
+                &target.id,
+                Kind::Expense,
+            )
+            .await?;
+            if operation == &Operation::Archive {
+                require_active(&expense)?;
+                let name = expense.name.clone();
+                records.push(expense);
+                format!("Archive {name}.")
+            } else {
+                require_archived(&expense)?;
+                let project = optional_row(transaction, "SELECT projects.id, projects.name, projects.archived_at FROM projects JOIN expenses ON expenses.project_id = projects.id WHERE expenses.id = ?", &target.id, Kind::Project).await?;
+                if client.archived_at.is_some() {
+                    records.push(client);
+                }
+                if let Some(project) = project {
+                    if project.archived_at.is_some() {
+                        records.push(project);
+                    }
+                }
+                records.push(expense);
+                let names = records
+                    .iter()
+                    .map(|record| record.name.as_str())
+                    .collect::<Vec<_>>();
+                format!(
+                    "Restore {}{}. Sibling records remain unchanged.",
+                    join_names(&names),
+                    if names.len() == 1 { " only" } else { "" }
+                )
+            }
+        }
     };
     Ok((records, impact_description))
 }
@@ -289,6 +348,27 @@ async fn row(
         archived_at,
     })
     .ok_or_else(|| "stale-plan: lifecycle hierarchy changed".into())
+}
+
+async fn optional_row(
+    transaction: &mut Transaction<'_, Sqlite>,
+    sql: &str,
+    id: &str,
+    kind: Kind,
+) -> Result<Option<Record>, String> {
+    sqlx::query_as::<_, (String, String, Option<String>)>(sql)
+        .bind(id)
+        .fetch_optional(&mut **transaction)
+        .await
+        .map(|row| {
+            row.map(|(id, name, archived_at)| Record {
+                kind,
+                id,
+                name,
+                archived_at,
+            })
+        })
+        .map_err(|error| format!("Lifecycle change was not saved: {error}"))
 }
 
 async fn rows(
@@ -349,6 +429,7 @@ mod tests {
                 "CREATE TABLE clients (id TEXT PRIMARY KEY, name TEXT NOT NULL, archived_at TEXT, updated_at TEXT NOT NULL);\
                  CREATE TABLE projects (id TEXT PRIMARY KEY, client_id TEXT NOT NULL, name TEXT NOT NULL, archived_at TEXT, updated_at TEXT NOT NULL);\
                  CREATE TABLE tasks (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, name TEXT NOT NULL, archived_at TEXT, updated_at TEXT NOT NULL);\
+                 CREATE TABLE expenses (id TEXT PRIMARY KEY, client_id TEXT, project_id TEXT, description TEXT NOT NULL, archived_at TEXT, updated_at TEXT NOT NULL);\
                  INSERT INTO clients VALUES ('client-1', 'Acme', NULL, 'old');",
             )
             .execute(&mut connection)
@@ -407,6 +488,7 @@ mod tests {
                 "CREATE TABLE clients (id TEXT PRIMARY KEY, name TEXT NOT NULL, archived_at TEXT, updated_at TEXT NOT NULL);\
                  CREATE TABLE projects (id TEXT PRIMARY KEY, client_id TEXT NOT NULL, name TEXT NOT NULL, archived_at TEXT, updated_at TEXT NOT NULL);\
                  CREATE TABLE tasks (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, name TEXT NOT NULL, archived_at TEXT, updated_at TEXT NOT NULL);\
+                 CREATE TABLE expenses (id TEXT PRIMARY KEY, client_id TEXT, project_id TEXT, description TEXT NOT NULL, archived_at TEXT, updated_at TEXT NOT NULL);\
                  INSERT INTO clients VALUES ('client-1', 'Acme', NULL, 'old');\
                  INSERT INTO projects VALUES ('project-1', 'client-1', 'Website', NULL, 'old');\
                  INSERT INTO tasks VALUES ('task-1', 'project-1', 'Research', NULL, 'old'), ('task-2', 'project-1', 'Retired review', '2026-08-04T09:00:00.000Z', 'old');",

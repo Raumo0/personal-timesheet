@@ -63,6 +63,8 @@ export function catalogLifecycleContract(
         activeTaskArchivedAt: appliedAt,
         activeTaskUpdatedAt: appliedAt,
         archivedTaskAt: archivedAt,
+        activeExpensesArchivedAt: appliedAt,
+        activeExpensesUpdatedAt: appliedAt,
       }),
     );
   });
@@ -221,7 +223,81 @@ export function catalogLifecycleContract(
     expect(harness.snapshot().projects[0].archivedAt).toBe(appliedAt);
     expect(harness.snapshot().tasks[0].archivedAt).toBe(appliedAt);
   });
+
+  test(`${adapterName} atomically archives active Expense descendants and preserves archived timestamps and siblings`, async () => {
+    const hierarchy = hierarchyFixture({ archivedExpenseAt: archivedAt });
+    const harness = createHarness(hierarchy, { now: () => new Date(appliedAt) });
+    const plan = await harness.lifecycle.preview({
+      operation: "archive",
+      target: { kind: "client", id: "client-1" },
+    });
+
+    await harness.lifecycle.apply(plan);
+
+    const expenses = harness.snapshot().expenses ?? [];
+    expect(expenses.map(({ id, archivedAt, updatedAt }) => ({ id, archivedAt, updatedAt }))).toEqual([
+      { id: "expense-direct", archivedAt: appliedAt, updatedAt: appliedAt },
+      { id: "expense-project", archivedAt: appliedAt, updatedAt: appliedAt },
+      { id: "expense-archived", archivedAt, updatedAt: createdAt },
+      { id: "expense-sibling", archivedAt: null, updatedAt: createdAt },
+    ]);
+  });
+
+  test(`${adapterName} atomically restores one Project Expense and required ancestors only`, async () => {
+    const hierarchy = hierarchyFixture({
+      clientArchivedAt: archivedAt,
+      projectArchivedAt: archivedAt,
+      projectExpenseArchivedAt: archivedAt,
+      archivedExpenseAt: archivedAt,
+    });
+    const harness = createHarness(hierarchy, { now: () => new Date(appliedAt) });
+    const plan = await harness.lifecycle.preview({
+      operation: "restore",
+      target: { kind: "expense", id: "expense-project" },
+    });
+
+    await harness.lifecycle.apply(plan);
+
+    const snapshot = harness.snapshot();
+    expect(snapshot.clients[0]).toMatchObject({ archivedAt: null, updatedAt: appliedAt });
+    expect(snapshot.projects[0]).toMatchObject({ archivedAt: null, updatedAt: appliedAt });
+    expect(snapshot.expenses?.find(({ id }) => id === "expense-project")).toMatchObject({
+      archivedAt: null,
+      updatedAt: appliedAt,
+    });
+    expect(snapshot.expenses?.find(({ id }) => id === "expense-archived")).toMatchObject({
+      archivedAt,
+      updatedAt: createdAt,
+    });
+    expect(snapshot.expenses?.find(({ id }) => id === "expense-sibling")).toMatchObject({
+      archivedAt: null,
+      updatedAt: createdAt,
+    });
+  });
+
+  test(`${adapterName} rejects a plan when an Expense enters its cascade scope`, async () => {
+    const hierarchy = hierarchyFixture();
+    const harness = createHarness(hierarchy);
+    const plan = await harness.lifecycle.preview({
+      operation: "archive",
+      target: { kind: "project", id: "project-1" },
+    });
+    const current = harness.snapshot();
+    harness.replaceSnapshot({
+      ...current,
+      expenses: [
+        ...(current.expenses ?? []),
+        expense("expense-new", { kind: "project", projectId: "project-1" }, null),
+      ],
+    });
+    const changed = harness.snapshot();
+
+    await expect(harness.lifecycle.apply(plan)).rejects.toMatchObject({ code: "stale-plan" });
+    expect(harness.snapshot()).toEqual(changed);
+  });
 }
+
+const createdAt = "2026-08-03T08:00:00.000Z";
 
 function hierarchyFixture(
   states: {
@@ -232,9 +308,12 @@ function hierarchyFixture(
     activeTaskArchivedAt?: string | null;
     activeTaskUpdatedAt?: string;
     archivedTaskAt?: string | null;
+    projectExpenseArchivedAt?: string | null;
+    archivedExpenseAt?: string | null;
+    activeExpensesArchivedAt?: string | null;
+    activeExpensesUpdatedAt?: string;
   } = {},
 ): CatalogHierarchy {
-  const createdAt = "2026-08-03T08:00:00.000Z";
   return {
     clients: [
       {
@@ -305,5 +384,53 @@ function hierarchyFixture(
         archivedAt: null,
       },
     ],
+    expenses: [
+      {
+        ...expense(
+          "expense-direct",
+          { kind: "client", clientId: "client-1" },
+          states.activeExpensesArchivedAt ?? null,
+        ),
+        updatedAt: states.activeExpensesUpdatedAt ?? createdAt,
+      },
+      {
+        ...expense(
+          "expense-project",
+          { kind: "project", projectId: "project-1" },
+          states.projectExpenseArchivedAt ?? states.activeExpensesArchivedAt ?? null,
+        ),
+        updatedAt: states.activeExpensesUpdatedAt ?? createdAt,
+      },
+      expense(
+        "expense-archived",
+        { kind: "project", projectId: "project-1" },
+        states.archivedExpenseAt ?? "2026-08-04T09:00:00.000Z",
+      ),
+      expense("expense-sibling", { kind: "project", projectId: "project-2" }, null),
+    ],
+  };
+}
+
+function expense(
+  id: string,
+  target: { kind: "client"; clientId: string } | { kind: "project"; projectId: string },
+  archivedAt: string | null,
+): NonNullable<CatalogHierarchy["expenses"]>[number] {
+  return {
+    id,
+    target,
+    expenseDate: "2026-08-03",
+    description: id,
+    originalCurrencyCode: "EUR",
+    originalAmountMinor: 100,
+    billingCurrencyCode: "EUR",
+    billingAmountMinor: 100,
+    appliedRate: "1",
+    rateSource: "manual",
+    rateObservedOn: null,
+    rateManuallyAdjusted: false,
+    createdAt,
+    updatedAt: createdAt,
+    archivedAt,
   };
 }

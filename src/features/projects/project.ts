@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { currencyFractionDigits } from "../clients/client";
+import { rescaleMinorUnits } from "../money/money";
 
 const hourlyRateOverrideMinorSchema = z
   .number()
@@ -68,24 +68,18 @@ export function rescaleRateOverride(
 ): number | null {
   if (hourlyRateOverrideMinor === null) return null;
 
-  const fromFractionDigits = currencyFractionDigits(fromCurrencyCode);
-  const toFractionDigits = currencyFractionDigits(toCurrencyCode);
-  const difference = toFractionDigits - fromFractionDigits;
-  if (difference === 0) return hourlyRateOverrideMinor;
-
-  if (difference > 0) {
-    const rescaled = hourlyRateOverrideMinor * 10 ** difference;
-    if (!Number.isSafeInteger(rescaled)) {
-      throw new Error("Hourly rate is too large for the new currency");
+  try {
+    return rescaleMinorUnits(
+      hourlyRateOverrideMinor,
+      fromCurrencyCode,
+      toCurrencyCode,
+    );
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(error.message.replace("Money amount", "Hourly rate"));
     }
-    return rescaled;
+    throw error;
   }
-
-  const divisor = 10 ** -difference;
-  if (hourlyRateOverrideMinor % divisor !== 0) {
-    throw new Error("Hourly rate cannot be represented in the new currency");
-  }
-  return hourlyRateOverrideMinor / divisor;
 }
 
 export const rescaleProjectRateOverride = rescaleRateOverride;

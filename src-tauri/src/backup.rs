@@ -443,6 +443,10 @@ impl BackupService {
             .map_err(|_| BackupError::MissingApplicationSchema)?;
         }
 
+        if data_version >= 6 {
+            validate_expenses_schema(&mut connection).await?;
+        }
+
         connection
             .close()
             .await
@@ -493,6 +497,63 @@ impl BackupService {
 
         Err(BackupError::CommitFailed { reason })
     }
+}
+
+async fn validate_expenses_schema(connection: &mut SqliteConnection) -> Result<(), BackupError> {
+    sqlx::query(
+        "SELECT id, client_id, project_id, expense_date, description, \
+         original_currency_code, original_amount_minor, billing_currency_code, \
+         billing_amount_minor, applied_rate, rate_source, rate_observed_on, \
+         rate_manually_adjusted, created_at, updated_at, archived_at \
+         FROM expenses LIMIT 0",
+    )
+    .fetch_optional(&mut *connection)
+    .await
+    .map_err(|_| BackupError::MissingApplicationSchema)?;
+
+    let create_sql = sqlx::query_scalar::<_, String>(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'expenses'",
+    )
+    .fetch_optional(&mut *connection)
+    .await
+    .map_err(|_| BackupError::MissingApplicationSchema)?
+    .ok_or(BackupError::MissingApplicationSchema)?;
+    let normalized = create_sql
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_ascii_lowercase();
+    for required in [
+        "check ((client_id is not null) != (project_id is not null))",
+        "typeof(original_amount_minor) = 'integer' and original_amount_minor > 0 and original_amount_minor <= 9007199254740991",
+        "typeof(billing_amount_minor) = 'integer' and billing_amount_minor > 0 and billing_amount_minor <= 9007199254740991",
+        "applied_rate not glob '*[^0-9.]*'",
+        "length(applied_rate) - length(replace(applied_rate, '.', '')) <= 1",
+        "length(applied_rate) - instr(applied_rate, '.') between 1 and 12",
+        "ltrim(replace(applied_rate, '.', ''), '0') != ''",
+        "rate_source = 'manual'",
+        "rate_observed_on is null",
+        "typeof(rate_manually_adjusted) = 'integer'",
+        "rate_manually_adjusted = 0",
+    ] {
+        if !normalized.contains(required) {
+            return Err(BackupError::MissingApplicationSchema);
+        }
+    }
+
+    let foreign_keys = sqlx::query_as::<_, (String, String)>(
+        "SELECT \"table\", \"from\" FROM pragma_foreign_key_list('expenses')",
+    )
+    .fetch_all(&mut *connection)
+    .await
+    .map_err(|_| BackupError::MissingApplicationSchema)?;
+    if !foreign_keys.contains(&("clients".to_owned(), "client_id".to_owned()))
+        || !foreign_keys.contains(&("projects".to_owned(), "project_id".to_owned()))
+    {
+        return Err(BackupError::MissingApplicationSchema);
+    }
+
+    Ok(())
 }
 
 fn normalized_destination(path: &Path) -> Result<PathBuf, BackupError> {
@@ -709,6 +770,41 @@ mod tests {
         .execute(&mut *connection)
         .await
         .expect("time entries table should be created");
+    }
+
+    async fn add_valid_expenses_table(connection: &mut SqliteConnection) {
+        let migration = crate::database::client_migrations()
+            .into_iter()
+            .find(|migration| migration.version == 6)
+            .expect("migration 6 should exist");
+        sqlx::raw_sql(migration.sql)
+            .execute(&mut *connection)
+            .await
+            .expect("expenses table should be created");
+        sqlx::raw_sql(
+            r#"
+            INSERT INTO expenses VALUES
+              ('expense-trailing-rate', 'client-0', NULL, '2026-08-06', 'Taxi',
+               'EUR', 100, 'EUR', 120, '1.20', 'manual', NULL, 0,
+               '2026-08-06T09:00:00Z', '2026-08-06T09:30:00Z', NULL),
+              ('expense-leading-rate', 'client-0', NULL, '2026-08-05', 'Meal',
+               'EUR', 100, 'EUR', 100, '01.0', 'manual', NULL, 0,
+               '2026-08-05T09:00:00Z', '2026-08-05T09:30:00Z', NULL);
+            "#,
+        )
+        .execute(&mut *connection)
+        .await
+        .expect("accepted positive decimal rate variants should insert");
+    }
+
+    async fn create_migration_six_backup(path: &Path) {
+        create_valid_backup(path, 6, &["Acme"]).await;
+        let mut backup = connect(path, false).await;
+        add_valid_projects_table(&mut backup).await;
+        add_valid_tasks_table(&mut backup).await;
+        add_valid_time_entries_table(&mut backup).await;
+        add_valid_expenses_table(&mut backup).await;
+        backup.close().await.expect("backup should close");
     }
 
     #[test]
@@ -981,6 +1077,87 @@ mod tests {
     }
 
     #[test]
+    fn validate_accepts_a_migration_six_backup_with_expenses() {
+        tauri::async_runtime::block_on(async {
+            let directory = TempDir::new().expect("temporary directory should be created");
+            let paths = BackupPaths::from_config_dir(directory.path());
+            let selected = directory.path().join("expenses.ptimesheet-backup");
+            create_migration_six_backup(&selected).await;
+
+            let preview = BackupService::new(paths.clone())
+                .stage_and_validate(&selected)
+                .await
+                .expect("migration six backup should be staged");
+
+            assert_eq!(preview.data_version, 6);
+            assert!(paths.pending_restore.exists());
+        });
+    }
+
+    #[test]
+    fn validate_rejects_migration_six_expense_schema_without_required_constraints() {
+        tauri::async_runtime::block_on(async {
+            let migration = crate::database::client_migrations()
+                .into_iter()
+                .find(|migration| migration.version == 6)
+                .expect("migration 6 should exist");
+            for (name, from, to) in [
+                (
+                    "target",
+                    "CHECK ((client_id IS NOT NULL) != (project_id IS NOT NULL))",
+                    "CHECK (1)",
+                ),
+                (
+                    "money",
+                    "AND original_amount_minor > 0",
+                    "AND original_amount_minor >= 0",
+                ),
+                ("rate", "AND applied_rate NOT GLOB '*[^0-9.]*'", "AND 1"),
+                (
+                    "rate-multiple-points",
+                    "AND length(applied_rate) - length(replace(applied_rate, '.', '')) <= 1",
+                    "AND 1",
+                ),
+                (
+                    "provenance",
+                    "rate_source = 'manual'",
+                    "length(rate_source) > 0",
+                ),
+                (
+                    "provenance-adjustment-type",
+                    "typeof(rate_manually_adjusted) = 'integer'",
+                    "1",
+                ),
+            ] {
+                let directory = TempDir::new().expect("temporary directory should be created");
+                let paths = BackupPaths::from_config_dir(directory.path());
+                let selected = directory.path().join(format!("malformed-{name}.db"));
+                create_valid_backup(&selected, 6, &["Acme"]).await;
+                let mut backup = connect(&selected, false).await;
+                add_valid_projects_table(&mut backup).await;
+                add_valid_tasks_table(&mut backup).await;
+                add_valid_time_entries_table(&mut backup).await;
+                let malformed = migration.sql.replace(from, to);
+                assert_ne!(malformed, migration.sql, "test mutation must change SQL");
+                sqlx::raw_sql(&malformed)
+                    .execute(&mut backup)
+                    .await
+                    .expect("malformed expenses table should be created");
+                backup.close().await.expect("backup should close");
+
+                let result = BackupService::new(paths.clone())
+                    .stage_and_validate(&selected)
+                    .await;
+                assert!(
+                    matches!(result, Err(BackupError::MissingApplicationSchema)),
+                    "{name} constraint should be required: {result:?}"
+                );
+                assert!(!paths.pending_restore.exists());
+            }
+        });
+    }
+
+    #[test]
     fn validate_rejects_a_migration_five_backup_without_time_entries() {
         tauri::async_runtime::block_on(async {
             let directory = TempDir::new().expect("temporary directory should be created");
@@ -1155,7 +1332,7 @@ mod tests {
             let directory = TempDir::new().expect("temporary directory should be created");
             let paths = BackupPaths::from_config_dir(directory.path());
             let selected = directory.path().join("future.ptimesheet-backup");
-            create_valid_backup(&selected, 6, &["Future client"]).await;
+            create_valid_backup(&selected, 7, &["Future client"]).await;
 
             let result = BackupService::new(paths.clone())
                 .stage_and_validate(&selected)
@@ -1164,8 +1341,8 @@ mod tests {
             assert!(matches!(
                 result,
                 Err(BackupError::UnsupportedNewerVersion {
-                    backup_version: 6,
-                    supported_version: 5,
+                    backup_version: 7,
+                    supported_version: 6,
                 })
             ));
             assert!(!paths.pending_restore.exists());

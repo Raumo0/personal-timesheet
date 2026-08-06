@@ -10,6 +10,7 @@ import { SqliteTaskCatalog } from "@/features/tasks/sqlite-task-catalog";
 import { SqliteCatalogLifecycle } from "@/features/catalog-lifecycle/sqlite-catalog-lifecycle";
 import { TauriBackupService } from "@/features/backup/tauri-backup-service";
 import { SqliteWeeklyTimeEntryStore } from "@/features/time-entry/sqlite-weekly-time-entry-store";
+import { SqliteExpenseStore } from "@/features/expenses/sqlite-expense-store";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { isTauri } from "@tauri-apps/api/core";
 
@@ -19,6 +20,7 @@ const taskCatalog = new SqliteTaskCatalog();
 const catalogLifecycle = new SqliteCatalogLifecycle();
 const backupService = new TauriBackupService();
 const weeklyStore = new SqliteWeeklyTimeEntryStore();
+const expenseStore = new SqliteExpenseStore();
 
 function App() {
   const router = useMemo(
@@ -32,6 +34,7 @@ function App() {
                 <AppShell
                   backupService={backupService}
                   clientCatalog={clientCatalog}
+                  expenseStore={expenseStore}
                   lifecycle={catalogLifecycle}
                   nativeWindow={isTauri() ? getCurrentWindow() : undefined}
                   projectCatalog={projectCatalog}

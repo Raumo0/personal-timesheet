@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+import {
+  currencyFractionDigits as sharedCurrencyFractionDigits,
+  formatMinorUnits,
+  parseMinorUnits,
+} from "../money/money";
+
 const currencyCodeSchema = z
   .string()
   .regex(/^[A-Z]{3}$/, "Choose a valid billing currency")
@@ -56,11 +62,7 @@ export function normalizeClientName(name: string): string {
 }
 
 export function currencyFractionDigits(currencyCode: string): number {
-  currencyCodeSchema.parse(currencyCode);
-  return new Intl.NumberFormat("en", {
-    style: "currency",
-    currency: currencyCode,
-  }).resolvedOptions().maximumFractionDigits ?? 2;
+  return sharedCurrencyFractionDigits(currencyCode);
 }
 
 export function parseRateToMinor(
@@ -70,21 +72,18 @@ export function parseRateToMinor(
   const value = rawValue.trim();
   if (value === "") return null;
 
-  const fractionDigits = currencyFractionDigits(currencyCode);
-  const normalizedValue = value.includes(".") ? value : value.replace(",", ".");
-  const match = normalizedValue.match(/^(\d+)(?:\.(\d+))?$/);
-  if (!match || (match[2]?.length ?? 0) > fractionDigits) {
-    throw new Error(`Enter a non-negative rate with up to ${fractionDigits} decimals`);
+  try {
+    return parseMinorUnits(value, currencyCode);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        error.message
+          .replace("Money amount", "Hourly rate")
+          .replace("amount", "rate"),
+      );
+    }
+    throw error;
   }
-
-  const whole = match[1];
-  const fraction = (match[2] ?? "").padEnd(fractionDigits, "0");
-  const minor = Number(`${whole}${fraction}`);
-  if (!Number.isSafeInteger(minor)) {
-    throw new Error("Hourly rate is too large");
-  }
-
-  return minor;
 }
 
 export function formatRate(
@@ -94,11 +93,7 @@ export function formatRate(
 ): string | null {
   if (hourlyRateMinor === null) return null;
 
-  const fractionDigits = currencyFractionDigits(currencyCode);
-  return new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency: currencyCode,
-  }).format(hourlyRateMinor / 10 ** fractionDigits);
+  return formatMinorUnits(hourlyRateMinor, currencyCode, locale);
 }
 
 export function clientFromRow(input: unknown): Client {

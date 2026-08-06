@@ -3,12 +3,16 @@ import { describe, expect, test } from "vitest";
 import {
   clientCommandSchema,
   clientRowSchema,
+  currencyFractionDigits,
   formatRate,
   normalizeClientName,
   parseRateToMinor,
 } from "./client";
 
 describe("client domain", () => {
+  test("keeps the shared money precision helper available", () => {
+    expect(currencyFractionDigits("KWD")).toBe(3);
+  });
   test("normalizes surrounding whitespace and case for identity", () => {
     expect(normalizeClientName("  Acme Studio  ")).toBe("acme studio");
   });
@@ -77,6 +81,12 @@ describe("client domain", () => {
     ["money", "EUR"],
   ])("rejects invalid precision or value %s %s", (input, currencyCode) => {
     expect(() => parseRateToMinor(input, currencyCode)).toThrow();
+  });
+
+  test("preserves the established hourly-rate overflow error", () => {
+    expect(() => parseRateToMinor("90071992547409.92", "EUR")).toThrow(
+      "Hourly rate is too large",
+    );
   });
 
   test("formats explicit zero and leaves null visibly unset", () => {

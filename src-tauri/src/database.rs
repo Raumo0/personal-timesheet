@@ -147,6 +147,73 @@ pub fn client_migrations() -> Vec<Migration> {
         "#,
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 6,
+            description: "create project expenses",
+            sql: r#"
+            CREATE TABLE expenses (
+                id TEXT PRIMARY KEY NOT NULL,
+                client_id TEXT REFERENCES clients(id),
+                project_id TEXT REFERENCES projects(id),
+                expense_date TEXT NOT NULL CHECK (
+                    length(expense_date) = 10
+                    AND expense_date = date(expense_date, '+0 days')
+                ),
+                description TEXT NOT NULL CHECK (
+                    length(description) > 0
+                    AND description = trim(description)
+                ),
+                original_currency_code TEXT NOT NULL CHECK (
+                    length(original_currency_code) = 3
+                    AND original_currency_code = upper(original_currency_code)
+                    AND original_currency_code NOT GLOB '*[^A-Z]*'
+                ),
+                original_amount_minor INTEGER NOT NULL CHECK (
+                    typeof(original_amount_minor) = 'integer'
+                    AND original_amount_minor > 0
+                    AND original_amount_minor <= 9007199254740991
+                ),
+                billing_currency_code TEXT NOT NULL CHECK (
+                    length(billing_currency_code) = 3
+                    AND billing_currency_code = upper(billing_currency_code)
+                    AND billing_currency_code NOT GLOB '*[^A-Z]*'
+                ),
+                billing_amount_minor INTEGER NOT NULL CHECK (
+                    typeof(billing_amount_minor) = 'integer'
+                    AND billing_amount_minor > 0
+                    AND billing_amount_minor <= 9007199254740991
+                ),
+                applied_rate TEXT NOT NULL CHECK (
+                    length(applied_rate) >= 1
+                    AND applied_rate NOT GLOB '*[^0-9.]*'
+                    AND length(applied_rate) - length(replace(applied_rate, '.', '')) <= 1
+                    AND (
+                        (
+                            instr(applied_rate, '.') = 0
+                        )
+                        OR (
+                            instr(applied_rate, '.') > 1
+                            AND length(applied_rate) - instr(applied_rate, '.') BETWEEN 1 AND 12
+                        )
+                    )
+                    AND ltrim(replace(applied_rate, '.', ''), '0') != ''
+                ),
+                rate_source TEXT NOT NULL CHECK (rate_source = 'manual'),
+                rate_observed_on TEXT CHECK (rate_observed_on IS NULL),
+                rate_manually_adjusted INTEGER NOT NULL CHECK (
+                    typeof(rate_manually_adjusted) = 'integer'
+                    AND rate_manually_adjusted = 0
+                ),
+                created_at TEXT NOT NULL CHECK (datetime(created_at) IS NOT NULL),
+                updated_at TEXT NOT NULL CHECK (datetime(updated_at) IS NOT NULL),
+                archived_at TEXT CHECK (
+                    archived_at IS NULL OR datetime(archived_at) IS NOT NULL
+                ),
+                CHECK ((client_id IS NOT NULL) != (project_id IS NOT NULL))
+            );
+        "#,
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
@@ -171,7 +238,7 @@ mod tests {
             .execute("PRAGMA foreign_keys = ON")
             .await
             .expect("foreign keys should be enabled");
-        for migration in client_migrations() {
+        for migration in client_migrations().into_iter().take(5) {
             apply_migration(&mut connection, migration.sql).await;
         }
         sqlx::raw_sql(
@@ -477,6 +544,143 @@ mod tests {
                 .execute(&mut connection)
                 .await
                 .is_err());
+        });
+    }
+
+    #[test]
+    fn sixth_migration_stores_exact_client_or_project_expense_snapshots() {
+        tauri::async_runtime::block_on(async {
+            let migrations = client_migrations();
+            let migration = migrations
+                .get(5)
+                .expect("migration 6 should create expenses");
+            assert_eq!(migration.version, 6);
+            assert!(migration.sql.contains("CREATE TABLE expenses"));
+
+            let mut connection = migration_five_database().await;
+            apply_migration(&mut connection, migration.sql).await;
+            sqlx::raw_sql(
+                r#"
+                INSERT INTO expenses VALUES
+                  ('expense-client', 'client-1', NULL, '2026-08-06', 'Train',
+                   'HUF', 9007199254740991, 'EUR', 2251799813685248, '0.123456789012',
+                   'manual', NULL, 0, '2026-08-06T09:00:00Z', '2026-08-06T09:30:00Z', NULL),
+                  ('expense-project', NULL, 'project-1', '2026-08-05', 'Hotel',
+                   'EUR', 10000, 'EUR', 10000, '1',
+                   'manual', NULL, 0, '2026-08-05T09:00:00Z', '2026-08-05T09:30:00Z', '2026-08-06T10:00:00Z'),
+                  ('expense-trailing-rate', 'client-1', NULL, '2026-08-04', 'Taxi',
+                   'EUR', 100, 'EUR', 120, '1.20',
+                   'manual', NULL, 0, '2026-08-04T09:00:00Z', '2026-08-04T09:30:00Z', NULL),
+                  ('expense-leading-rate', 'client-1', NULL, '2026-08-03', 'Meal',
+                   'EUR', 100, 'EUR', 100, '01.0',
+                   'manual', NULL, 0, '2026-08-03T09:00:00Z', '2026-08-03T09:30:00Z', NULL);
+                "#,
+            )
+            .execute(&mut connection)
+            .await
+            .expect("valid direct Client and Project expenses should insert");
+
+            let rows: Vec<(String, Option<String>, Option<String>, i64, String, Option<String>)> =
+                sqlx::query_as(
+                    "SELECT id, client_id, project_id, original_amount_minor, applied_rate, archived_at FROM expenses ORDER BY id",
+                )
+                .fetch_all(&mut connection)
+                .await
+                .expect("expense snapshots should be readable");
+            assert_eq!(rows.len(), 4);
+            assert_eq!(rows[0].3, 9_007_199_254_740_991);
+            assert_eq!(rows[0].4, "0.123456789012");
+            assert!(rows.iter().any(|row| row.4 == "1.20"));
+            assert!(rows.iter().any(|row| row.4 == "01.0"));
+            assert!(rows.iter().any(|row| row.5.is_some()));
+        });
+    }
+
+    #[test]
+    fn sixth_migration_rejects_invalid_target_money_and_domain_values() {
+        tauri::async_runtime::block_on(async {
+            let migrations = client_migrations();
+            let mut connection = migration_five_database().await;
+            apply_migration(&mut connection, migrations[5].sql).await;
+
+            for (id, overrides) in [
+                ("neither-target", "NULL, NULL, '2026-08-06', 'Train', 'EUR', 1, 'EUR', 1, '1', 'manual', NULL, 0, '2026-08-06T09:00:00Z', '2026-08-06T09:00:00Z', NULL"),
+                ("both-targets", "'client-1', 'project-1', '2026-08-06', 'Train', 'EUR', 1, 'EUR', 1, '1', 'manual', NULL, 0, '2026-08-06T09:00:00Z', '2026-08-06T09:00:00Z', NULL"),
+                ("bad-date", "'client-1', NULL, '2026-02-30', 'Train', 'EUR', 1, 'EUR', 1, '1', 'manual', NULL, 0, '2026-08-06T09:00:00Z', '2026-08-06T09:00:00Z', NULL"),
+                ("blank-description", "'client-1', NULL, '2026-08-06', '   ', 'EUR', 1, 'EUR', 1, '1', 'manual', NULL, 0, '2026-08-06T09:00:00Z', '2026-08-06T09:00:00Z', NULL"),
+                ("untrimmed-description", "'client-1', NULL, '2026-08-06', ' Train ', 'EUR', 1, 'EUR', 1, '1', 'manual', NULL, 0, '2026-08-06T09:00:00Z', '2026-08-06T09:00:00Z', NULL"),
+                ("bad-currency", "'client-1', NULL, '2026-08-06', 'Train', 'Euro', 1, 'EUR', 1, '1', 'manual', NULL, 0, '2026-08-06T09:00:00Z', '2026-08-06T09:00:00Z', NULL"),
+                ("nonalpha-currency", "'client-1', NULL, '2026-08-06', 'Train', '1A$', 1, 'EUR', 1, '1', 'manual', NULL, 0, '2026-08-06T09:00:00Z', '2026-08-06T09:00:00Z', NULL"),
+                ("zero-original", "'client-1', NULL, '2026-08-06', 'Train', 'EUR', 0, 'EUR', 1, '1', 'manual', NULL, 0, '2026-08-06T09:00:00Z', '2026-08-06T09:00:00Z', NULL"),
+                ("unsafe-billing", "'client-1', NULL, '2026-08-06', 'Train', 'EUR', 1, 'EUR', 9007199254740992, '1', 'manual', NULL, 0, '2026-08-06T09:00:00Z', '2026-08-06T09:00:00Z', NULL"),
+                ("zero-rate", "'client-1', NULL, '2026-08-06', 'Train', 'EUR', 1, 'EUR', 1, '0', 'manual', NULL, 0, '2026-08-06T09:00:00Z', '2026-08-06T09:00:00Z', NULL"),
+                ("too-precise-rate", "'client-1', NULL, '2026-08-06', 'Train', 'EUR', 1, 'EUR', 1, '0.1234567890123', 'manual', NULL, 0, '2026-08-06T09:00:00Z', '2026-08-06T09:00:00Z', NULL"),
+                ("bad-provenance", "'client-1', NULL, '2026-08-06', 'Train', 'EUR', 1, 'EUR', 1, '1', 'ECB', '2026-08-05', 1, '2026-08-06T09:00:00Z', '2026-08-06T09:00:00Z', NULL"),
+                ("bad-timestamp", "'client-1', NULL, '2026-08-06', 'Train', 'EUR', 1, 'EUR', 1, '1', 'manual', NULL, 0, 'not-a-time', '2026-08-06T09:00:00Z', NULL"),
+            ] {
+                let statement = format!("INSERT INTO expenses VALUES ('{id}', {overrides})");
+                assert!(
+                    sqlx::query(&statement).execute(&mut connection).await.is_err(),
+                    "{id} should violate migration constraints"
+                );
+            }
+
+            for (id, amount) in [
+                ("fractional-original", 1.5_f64),
+                ("fractional-billing", 2.5),
+            ] {
+                let statement = if id == "fractional-original" {
+                    "INSERT INTO expenses VALUES (?, 'client-1', NULL, '2026-08-06', 'Train', 'EUR', ?, 'EUR', 1, '1', 'manual', NULL, 0, '2026-08-06T09:00:00Z', '2026-08-06T09:00:00Z', NULL)"
+                } else {
+                    "INSERT INTO expenses VALUES (?, 'client-1', NULL, '2026-08-06', 'Train', 'EUR', 1, 'EUR', ?, '1', 'manual', NULL, 0, '2026-08-06T09:00:00Z', '2026-08-06T09:00:00Z', NULL)"
+                };
+                assert!(sqlx::query(statement)
+                    .bind(id)
+                    .bind(amount)
+                    .execute(&mut connection)
+                    .await
+                    .is_err());
+            }
+
+            let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM expenses")
+                .fetch_one(&mut connection)
+                .await
+                .expect("expense count should be readable");
+            assert_eq!(count, 0);
+        });
+    }
+
+    #[test]
+    fn sixth_migration_restricts_target_deletion_and_leaves_prior_schema_intact() {
+        tauri::async_runtime::block_on(async {
+            let migrations = client_migrations();
+            assert_eq!(
+                migrations
+                    .iter()
+                    .map(|migration| migration.version)
+                    .collect::<Vec<_>>(),
+                vec![1, 2, 3, 4, 5, 6]
+            );
+            let mut connection = migration_five_database().await;
+            apply_migration(&mut connection, migrations[5].sql).await;
+            sqlx::query("INSERT INTO expenses VALUES ('expense-1', NULL, 'project-1', '2026-08-06', 'Train', 'EUR', 1, 'EUR', 1, '1', 'manual', NULL, 0, '2026-08-06T09:00:00Z', '2026-08-06T09:00:00Z', NULL)")
+                .execute(&mut connection)
+                .await
+                .expect("expense should insert");
+            assert!(sqlx::query("DELETE FROM projects WHERE id = 'project-1'")
+                .execute(&mut connection)
+                .await
+                .is_err());
+            for table in ["clients", "projects", "tasks", "time_entries", "expenses"] {
+                let exists: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
+                )
+                .bind(table)
+                .fetch_one(&mut connection)
+                .await
+                .expect("schema should be readable");
+                assert_eq!(exists, 1, "{table} should remain present");
+            }
         });
     }
 }

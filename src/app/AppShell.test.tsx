@@ -12,6 +12,7 @@ import { InMemoryClientCatalog } from "@/features/clients/in-memory-client-catal
 import { InMemoryProjectCatalog } from "@/features/projects/in-memory-project-catalog";
 import { InMemoryTaskCatalog } from "@/features/tasks/in-memory-task-catalog";
 import { InMemoryBackupService } from "@/features/backup/in-memory-backup-service";
+import type { ExpenseStore, ExpenseWorkspaceSnapshot } from "@/features/expenses/expense-store";
 import { InMemoryWeeklyTimeEntryStore } from "@/features/time-entry/in-memory-weekly-time-entry-store";
 import type { TimeEntryNativeWindow } from "@/features/time-entry/time-entry-navigation-coordinator";
 import type { WeeklyTimeEntryStore } from "@/features/time-entry/weekly-time-entry-store";
@@ -40,6 +41,18 @@ const weeklySeed = {
   }],
 };
 
+function emptyExpenseStore(): ExpenseStore {
+  return {
+    loadWorkspace: vi.fn().mockResolvedValue({
+      expenses: [],
+      targets: [],
+      targetDisplays: [],
+    }),
+    create: vi.fn(),
+    update: vi.fn(),
+  };
+}
+
 function renderTaskRoute(
   path = "/clients/client-1/projects/project-1/tasks",
   catalogs = {
@@ -61,6 +74,7 @@ function renderTaskRoute(
           <AppShell
             backupService={new InMemoryBackupService()}
             clientCatalog={catalogs.clientCatalog}
+            expenseStore={emptyExpenseStore()}
             projectCatalog={catalogs.projectCatalog}
             taskCatalog={catalogs.taskCatalog}
             lifecycle={lifecycle}
@@ -120,6 +134,7 @@ function renderTimesheet(
     <AppShell
       backupService={new InMemoryBackupService()}
       clientCatalog={new InMemoryClientCatalog()}
+      expenseStore={emptyExpenseStore()}
       lifecycle={new InMemoryCatalogLifecycle({
         hierarchy: { clients: [], projects: [], tasks: [] },
       })}
@@ -139,6 +154,30 @@ function renderTimesheet(
         ) : (
           <MemoryRouter>{shell}</MemoryRouter>
         )}
+      </TooltipProvider>
+    </ThemeProvider>,
+  );
+}
+
+function renderExpenses(expenseStore: ExpenseStore, lifecycle?: InMemoryCatalogLifecycle) {
+  vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }));
+  return render(
+    <ThemeProvider>
+      <TooltipProvider>
+        <MemoryRouter initialEntries={["/expenses"]}>
+          <AppShell
+            backupService={new InMemoryBackupService()}
+            clientCatalog={new InMemoryClientCatalog()}
+            expenseStore={expenseStore}
+            lifecycle={lifecycle}
+            projectCatalog={new InMemoryProjectCatalog()}
+            taskCatalog={new InMemoryTaskCatalog()}
+          />
+        </MemoryRouter>
       </TooltipProvider>
     </ThemeProvider>,
   );
@@ -202,6 +241,7 @@ describe("application shell", () => {
             <AppShell
               backupService={new InMemoryBackupService()}
               clientCatalog={new InMemoryClientCatalog()}
+              expenseStore={emptyExpenseStore()}
               projectCatalog={new InMemoryProjectCatalog()}
               taskCatalog={new InMemoryTaskCatalog()}
             />
@@ -227,7 +267,7 @@ describe("application shell", () => {
     vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
     render(
       <ThemeProvider><TooltipProvider><MemoryRouter initialEntries={["/clients/client-1/projects"]}>
-        <AppShell backupService={new InMemoryBackupService()} clientCatalog={new InMemoryClientCatalog({ clients: [{ id: "client-1", name: "Acme", currencyCode: "EUR", hourlyRateMinor: 12_500, createdAt: "2026-08-02T10:00:00.000Z", updatedAt: "2026-08-02T10:00:00.000Z", archivedAt: null }] })} projectCatalog={new InMemoryProjectCatalog()} taskCatalog={new InMemoryTaskCatalog()} />
+        <AppShell backupService={new InMemoryBackupService()} clientCatalog={new InMemoryClientCatalog({ clients: [{ id: "client-1", name: "Acme", currencyCode: "EUR", hourlyRateMinor: 12_500, createdAt: "2026-08-02T10:00:00.000Z", updatedAt: "2026-08-02T10:00:00.000Z", archivedAt: null }] })} expenseStore={emptyExpenseStore()} projectCatalog={new InMemoryProjectCatalog()} taskCatalog={new InMemoryTaskCatalog()} />
       </MemoryRouter></TooltipProvider></ThemeProvider>,
     );
     expect(await screen.findByRole("heading", { name: "Projects" })).toBeInTheDocument();
@@ -508,6 +548,7 @@ describe("application shell", () => {
             <AppShell
               backupService={new InMemoryBackupService()}
               clientCatalog={new InMemoryClientCatalog()}
+              expenseStore={emptyExpenseStore()}
               projectCatalog={new InMemoryProjectCatalog()}
               taskCatalog={new InMemoryTaskCatalog()}
             />
@@ -562,6 +603,76 @@ describe("application shell", () => {
     expect(
       await screen.findByRole("row", { name: "Acme · Website · Research · Task" }),
     ).toBeInTheDocument();
+  });
+
+  test("opens lazy Expenses with comfortable density, active navigation, and injected services", async () => {
+    let resolveWorkspace!: (snapshot: ExpenseWorkspaceSnapshot) => void;
+    const loadWorkspace = vi.fn(() => new Promise<ExpenseWorkspaceSnapshot>((resolve) => {
+      resolveWorkspace = resolve;
+    }));
+    const expenseStore: ExpenseStore = {
+      loadWorkspace,
+      create: vi.fn(),
+      update: vi.fn(),
+    };
+    const lifecycle = new InMemoryCatalogLifecycle({
+      hierarchy: {
+        clients: [client],
+        projects: [project],
+        tasks: [],
+        expenses: [{
+          id: "expense-1",
+          target: { kind: "project", projectId: project.id },
+          expenseDate: "2026-08-05",
+          description: "Train",
+          originalCurrencyCode: "EUR",
+          originalAmountMinor: 1_250,
+          billingCurrencyCode: "EUR",
+          billingAmountMinor: 1_250,
+          appliedRate: "1",
+          rateSource: "manual",
+          rateObservedOn: null,
+          rateManuallyAdjusted: false,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          archivedAt: null,
+        }],
+      },
+    });
+    renderExpenses(expenseStore, lifecycle);
+
+    expect(await screen.findByRole("status")).toHaveTextContent(/Opening expenses|Loading expenses/);
+    resolveWorkspace({
+      expenses: lifecycle.snapshot().expenses ?? [],
+      targets: [{
+        client: { id: client.id, name: client.name, currencyCode: client.currencyCode },
+        projects: [{ id: project.id, name: project.name }],
+      }],
+      targetDisplays: [{
+        target: { kind: "project", projectId: project.id },
+        name: project.name,
+      }],
+    });
+
+    expect(await screen.findByRole("heading", { name: "Expenses" })).toBeInTheDocument();
+    expect(screen.getByText("Train")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Archive Train" })).toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveAttribute("data-density", "comfortable");
+    expect(screen.getByRole("link", { name: "Expenses" })).toHaveAttribute("aria-current", "page");
+  });
+
+  test("recovers an injected Expense workspace load failure on Retry", async () => {
+    const loadWorkspace = vi.fn()
+      .mockRejectedValueOnce(new Error("database unavailable"))
+      .mockResolvedValueOnce({ expenses: [], targets: [], targetDisplays: [] });
+    renderExpenses({ loadWorkspace, create: vi.fn(), update: vi.fn() });
+    const user = userEvent.setup();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Expenses could not be loaded");
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByRole("heading", { name: "No expenses yet" })).toBeInTheDocument();
+    expect(loadWorkspace).toHaveBeenCalledTimes(2);
   });
 
   test("shows loading and recovers a failed Timesheet load on Retry", async () => {
