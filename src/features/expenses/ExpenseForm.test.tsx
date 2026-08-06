@@ -50,9 +50,11 @@ test("offers direct Client and grouped Project targets from the active target tr
   const user = userEvent.setup();
   renderForm();
 
-  await user.click(screen.getByRole("combobox", { name: "Billing target" }));
+  const target = screen.getByRole("combobox", { name: "Billing target" });
+  target.focus();
+  await user.keyboard("{Enter}");
 
-  expect(screen.getByRole("group", { name: "Acme" })).toBeInTheDocument();
+  expect(await screen.findByRole("group", { name: "Acme" })).toBeInTheDocument();
   expect(screen.getByRole("option", { name: "Client · Acme" })).toBeInTheDocument();
   expect(screen.getByRole("option", { name: "Project · Website" })).toBeInTheDocument();
   expect(screen.getByRole("group", { name: "Globex" })).toBeInTheDocument();
