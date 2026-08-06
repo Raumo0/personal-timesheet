@@ -1,8 +1,10 @@
+# invoice-pdf-generation Specification
+
 ## Purpose
 
 Defines how a local user composes one Client's saved time and Expenses into a polished, configurable, invoice-ready PDF.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Configure one Client invoice period
 The application SHALL provide an invoice generator in Reports for one active Client and one valid inclusive local-date range. It SHALL require a sender name, use the selected Client name as the recipient, default the issue date to the current local date, and allow an optional manually entered `Invoice no.` such as `INV-2026-001` without changing Client data. A blank Invoice no. SHALL remove the field completely from the preview and PDF.
@@ -119,7 +121,11 @@ The generator SHALL let the user independently include or omit an editable Payme
 - **THEN** the Work summary contains only that chart plus the approved summary metrics
 
 ### Requirement: Render a readable quiet-fintech document
-The exported PDF SHALL use A4 pages, a strict grid, compact typography, one restrained deep accent, tabular numeric alignment, subtle separators, and deterministic pagination. It SHALL identify the document as `Invoice` without displaying the internal product name `Personal Timesheet`, and SHALL keep text, tables, totals, charts, and page footers inside printable bounds without overlap or clipping.
+The preview and printed PDF SHALL render the same invoice document component with the same typography, colors, hierarchy, tables, totals, and charts. Print-specific rules MAY change only page geometry, pagination, and controls that do not belong to the document. The printed PDF SHALL use A4 pages, a strict grid, compact typography, one restrained deep accent, tabular numeric alignment, subtle separators, and deterministic pagination. It SHALL identify the document as `Invoice` without displaying the internal product name `Personal Timesheet`, and SHALL keep text, tables, totals, and charts inside printable bounds without overlap or clipping.
+
+#### Scenario: Preserve preview appearance in PDF
+- **WHEN** the user prints an exportable preview to PDF
+- **THEN** the PDF preserves the preview's document alignment, typography, colors, tables, totals, chart scales, chart directions, and labels instead of substituting a separately drawn layout
 
 #### Scenario: Format the full period
 - **WHEN** the document language is English and the period is 1 through 28 February 2026
@@ -172,18 +178,26 @@ When enabled, Work category breakdown SHALL show categories as a vertical list o
 - **THEN** the summary shows Total hours and the count of distinct dates with positive included time as Active days, without a Task or Work category count
 
 ### Requirement: Export through a native save flow
-The application SHALL open a native PDF save dialog from an exportable preview, suggest a filesystem-safe filename derived from Client and period, and write a valid PDF only to the user-selected path. Cancelling SHALL leave the draft intact without an error, and generation or write failures SHALL leave source records unchanged and expose a recoverable error.
+The application SHALL open the native WebView print flow from an exportable preview through a registered Tauri print command so the user can save the rendered document as PDF. It SHALL NOT rely on a direct DOM `window.print()` call as the native application export boundary. The print job SHALL contain the invoice document only, without generator controls or application navigation. Cancelling SHALL leave the draft intact without an error, and print failures SHALL leave source records unchanged and expose a recoverable error.
 
 #### Scenario: Export a PDF
-- **WHEN** the user confirms a destination in the native save dialog
-- **THEN** the application writes the previewed invoice content as a PDF at that path and reports completion
+- **WHEN** the user starts export and chooses the system's PDF destination
+- **THEN** the native print flow saves the exact previewed invoice document as a PDF
+
+#### Scenario: Start the native print dialog
+- **WHEN** the refreshed preview is exportable and its print layout is ready
+- **THEN** the frontend invokes the registered Tauri print command for the current WebView and keeps the export pending until that command accepts or rejects the request
+
+#### Scenario: Preserve the invoice-only print layout
+- **WHEN** the native print command accepts the request before WebKit has completed the print operation
+- **THEN** invoice print mode remains active until `afterprint`, the existing preview is isolated from application chrome and generator controls without cloning it, and only that preview participates in the paginated print layout
 
 #### Scenario: Cancel export
-- **WHEN** the user closes the native save dialog without selecting a path
-- **THEN** no file is written, no error is shown, and the configured draft remains available
+- **WHEN** the user closes the native print flow without completing it
+- **THEN** no application data is changed, no error is shown, and the configured draft remains available
 
 #### Scenario: Export fails
-- **WHEN** PDF generation or the selected filesystem write fails
+- **WHEN** the native print flow cannot be started
 - **THEN** no source time, Expense, Client, Project, or Task record changes and the interface displays a retryable error
 
 ### Requirement: Keep invoice generation local and transient

@@ -1,0 +1,24 @@
+{
+  "request": {
+    "clientId": "client-1", "senderName": "Northstar Studio", "issueDate": "2026-02-08", "invoiceNumber": null,
+    "periodStart": "2026-02-01", "periodEnd": "2026-02-07", "includedExpenseIds": null,
+    "draftRateOverridesMinor": {}, "paymentNoteEnabled": false, "paymentNote": "",
+    "includeDailyActivity": false, "includeWorkCategoryBreakdown": true
+  },
+  "source": {
+    "client": { "id": "client-1", "name": "Atlas Labs", "currencyCode": "EUR", "hourlyRateMinor": 12000 },
+    "projects": [
+      { "id": "project-a", "clientId": "client-1", "name": "Mobile launch", "hourlyRateOverrideMinor": null, "archived": false },
+      { "id": "project-b", "clientId": "client-1", "name": "Operations portal", "hourlyRateOverrideMinor": null, "archived": false }
+    ],
+    "tasks": [
+      { "id": "task-a", "projectId": "project-a", "name": "Product design", "hourlyRateOverrideMinor": null, "archived": false },
+      { "id": "task-b", "projectId": "project-b", "name": "Implementation", "hourlyRateOverrideMinor": null, "archived": false }
+    ],
+    "timeEntries": [
+      { "date": "2026-02-02", "minutes": 60, "projectId": "project-a", "taskId": "task-a" },
+      { "date": "2026-02-04", "minutes": 180, "projectId": "project-b", "taskId": "task-b" }
+    ],
+    "expenses": []
+  }
+}

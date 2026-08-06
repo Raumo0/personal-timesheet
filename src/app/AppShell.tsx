@@ -38,6 +38,7 @@ import type { ProjectCatalog } from "@/features/projects/project-catalog";
 import type { TaskCatalog } from "@/features/tasks/task-catalog";
 import type { BackupService } from "@/features/backup/backup-service";
 import type { ExpenseStore } from "@/features/expenses/expense-store";
+import type { ExportingInvoiceService } from "@/features/invoices/invoice-service";
 import type { WeeklyTimeEntryStore } from "@/features/time-entry/weekly-time-entry-store";
 import {
   AppTimeEntryNavigationCoordinator,
@@ -71,6 +72,11 @@ const WeeklyTimesheetPage = lazy(() =>
 const ExpensesPage = lazy(() =>
   import("@/features/expenses/ExpensesPage").then((module) => ({
     default: module.ExpensesPage,
+  })),
+);
+const InvoicePage = lazy(() =>
+  import("@/features/invoices/InvoicePage").then((module) => ({
+    default: module.InvoicePage,
   })),
 );
 
@@ -226,6 +232,7 @@ export function AppShell({
   backupService,
   clientCatalog,
   expenseStore,
+  invoiceService,
   projectCatalog,
   taskCatalog,
   lifecycle,
@@ -235,6 +242,7 @@ export function AppShell({
   backupService: BackupService;
   clientCatalog: ClientCatalog;
   expenseStore: ExpenseStore;
+  invoiceService: ExportingInvoiceService;
   projectCatalog: ProjectCatalog;
   taskCatalog: TaskCatalog;
   lifecycle?: CatalogLifecycle;
@@ -443,6 +451,19 @@ export function AppShell({
                         }
                       >
                         <ExpensesPage lifecycle={lifecycle} store={expenseStore} />
+                      </Suspense>
+                    ) : destination.path === "/reports" ? (
+                      <Suspense
+                        fallback={
+                          <p className="text-sm text-muted-foreground" role="status">
+                            Opening invoice…
+                          </p>
+                        }
+                      >
+                        <InvoicePage
+                          clientCatalog={clientCatalog}
+                          invoiceService={invoiceService}
+                        />
                       </Suspense>
                     ) : (
                       <ProductPage destination={destination} />

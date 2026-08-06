@@ -13,6 +13,8 @@ import { InMemoryProjectCatalog } from "@/features/projects/in-memory-project-ca
 import { InMemoryTaskCatalog } from "@/features/tasks/in-memory-task-catalog";
 import { InMemoryBackupService } from "@/features/backup/in-memory-backup-service";
 import type { ExpenseStore, ExpenseWorkspaceSnapshot } from "@/features/expenses/expense-store";
+import type { ExportingInvoiceService } from "@/features/invoices/invoice-service";
+import { invoiceServiceContractDocument } from "@/features/invoices/invoice-service.contract";
 import { InMemoryWeeklyTimeEntryStore } from "@/features/time-entry/in-memory-weekly-time-entry-store";
 import type { TimeEntryNativeWindow } from "@/features/time-entry/time-entry-navigation-coordinator";
 import type { WeeklyTimeEntryStore } from "@/features/time-entry/weekly-time-entry-store";
@@ -53,6 +55,14 @@ function emptyExpenseStore(): ExpenseStore {
   };
 }
 
+function invoiceService(): ExportingInvoiceService {
+  return {
+    prepare: vi.fn().mockResolvedValue(invoiceServiceContractDocument()),
+    print: vi.fn().mockResolvedValue(undefined),
+    exportPdf: vi.fn().mockResolvedValue({ status: "cancelled" }),
+  };
+}
+
 function renderTaskRoute(
   path = "/clients/client-1/projects/project-1/tasks",
   catalogs = {
@@ -75,6 +85,7 @@ function renderTaskRoute(
             backupService={new InMemoryBackupService()}
             clientCatalog={catalogs.clientCatalog}
             expenseStore={emptyExpenseStore()}
+            invoiceService={invoiceService()}
             projectCatalog={catalogs.projectCatalog}
             taskCatalog={catalogs.taskCatalog}
             lifecycle={lifecycle}
@@ -133,8 +144,9 @@ function renderTimesheet(
   const shell = (
     <AppShell
       backupService={new InMemoryBackupService()}
-      clientCatalog={new InMemoryClientCatalog()}
+      clientCatalog={new InMemoryClientCatalog({ clients: [client] })}
       expenseStore={emptyExpenseStore()}
+      invoiceService={invoiceService()}
       lifecycle={new InMemoryCatalogLifecycle({
         hierarchy: { clients: [], projects: [], tasks: [] },
       })}
@@ -173,6 +185,7 @@ function renderExpenses(expenseStore: ExpenseStore, lifecycle?: InMemoryCatalogL
             backupService={new InMemoryBackupService()}
             clientCatalog={new InMemoryClientCatalog()}
             expenseStore={expenseStore}
+            invoiceService={invoiceService()}
             lifecycle={lifecycle}
             projectCatalog={new InMemoryProjectCatalog()}
             taskCatalog={new InMemoryTaskCatalog()}
@@ -210,16 +223,19 @@ describe("application shell", () => {
     ).toHaveAttribute("aria-current", "page");
   });
 
-  test("navigates to Reports and identifies it as active", async () => {
-    const user = userEvent.setup();
-    renderApp();
+  test("opens the lazy invoice generator in Reports with its injected services", async () => {
+    renderTaskRoute("/reports");
 
-    await user.click(screen.getByRole("link", { name: "Reports" }));
-
-    expect(screen.getByRole("heading", { name: "Reports" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Invoice generator" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Reports" })).toHaveAttribute(
       "aria-current",
       "page",
+    );
+    expect(screen.getByRole("main")).toHaveAttribute(
+      "data-density",
+      "comfortable",
     );
   });
 
@@ -242,6 +258,7 @@ describe("application shell", () => {
               backupService={new InMemoryBackupService()}
               clientCatalog={new InMemoryClientCatalog()}
               expenseStore={emptyExpenseStore()}
+              invoiceService={invoiceService()}
               projectCatalog={new InMemoryProjectCatalog()}
               taskCatalog={new InMemoryTaskCatalog()}
             />
@@ -267,7 +284,7 @@ describe("application shell", () => {
     vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
     render(
       <ThemeProvider><TooltipProvider><MemoryRouter initialEntries={["/clients/client-1/projects"]}>
-        <AppShell backupService={new InMemoryBackupService()} clientCatalog={new InMemoryClientCatalog({ clients: [{ id: "client-1", name: "Acme", currencyCode: "EUR", hourlyRateMinor: 12_500, createdAt: "2026-08-02T10:00:00.000Z", updatedAt: "2026-08-02T10:00:00.000Z", archivedAt: null }] })} expenseStore={emptyExpenseStore()} projectCatalog={new InMemoryProjectCatalog()} taskCatalog={new InMemoryTaskCatalog()} />
+        <AppShell backupService={new InMemoryBackupService()} clientCatalog={new InMemoryClientCatalog({ clients: [{ id: "client-1", name: "Acme", currencyCode: "EUR", hourlyRateMinor: 12_500, createdAt: "2026-08-02T10:00:00.000Z", updatedAt: "2026-08-02T10:00:00.000Z", archivedAt: null }] })} expenseStore={emptyExpenseStore()} invoiceService={invoiceService()} projectCatalog={new InMemoryProjectCatalog()} taskCatalog={new InMemoryTaskCatalog()} />
       </MemoryRouter></TooltipProvider></ThemeProvider>,
     );
     expect(await screen.findByRole("heading", { name: "Projects" })).toBeInTheDocument();
@@ -498,8 +515,16 @@ describe("application shell", () => {
     renderApp();
 
     await user.click(screen.getByRole("link", { name: "Reports" }));
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "Reports" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      ),
+    );
     await user.click(screen.getByRole("link", { name: "Expenses" }));
+    await screen.findByRole("heading", { name: "Expenses" });
     await user.click(screen.getByRole("link", { name: "Settings" }));
+    await screen.findByRole("heading", { name: "Settings" });
     await user.click(
       screen.getByRole("button", { name: "Collapse sidebar" }),
     );
@@ -547,8 +572,9 @@ describe("application shell", () => {
           <MemoryRouter initialEntries={["/settings"]}>
             <AppShell
               backupService={new InMemoryBackupService()}
-              clientCatalog={new InMemoryClientCatalog()}
+              clientCatalog={new InMemoryClientCatalog({ clients: [client] })}
               expenseStore={emptyExpenseStore()}
+              invoiceService={invoiceService()}
               projectCatalog={new InMemoryProjectCatalog()}
               taskCatalog={new InMemoryTaskCatalog()}
             />
@@ -565,12 +591,14 @@ describe("application shell", () => {
     ).toBeEnabled();
 
     await user.click(screen.getByRole("link", { name: "Reports" }));
-    expect(screen.getByRole("heading", { name: "Reports" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Invoice generator" }),
+    ).toBeInTheDocument();
   });
 
   test("keeps page chrome aligned across workspace densities", async () => {
     const user = userEvent.setup();
-    renderApp();
+    renderTimesheet(new InMemoryWeeklyTimeEntryStore(weeklySeed));
 
     const main = screen.getByRole("main");
 
@@ -710,7 +738,9 @@ describe("application shell", () => {
 
     await user.click(screen.getByRole("link", { name: "Reports" }));
     await user.click(screen.getByRole("button", { name: "Discard changes" }));
-    expect(await screen.findByRole("heading", { name: "Reports" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Invoice generator" }),
+    ).toBeInTheDocument();
   });
 
   test("guards HashRouter back navigation with Stay and Discard", async () => {
@@ -735,7 +765,9 @@ describe("application shell", () => {
 
     act(() => window.history.back());
     await user.click(await screen.findByRole("button", { name: "Discard changes" }));
-    expect(await screen.findByRole("heading", { name: "Reports" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Invoice generator" }),
+    ).toBeInTheDocument();
   });
 
   test("allows an unguarded Tauri close to use the default close path", async () => {

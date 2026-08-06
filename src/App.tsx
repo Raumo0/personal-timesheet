@@ -11,6 +11,7 @@ import { SqliteCatalogLifecycle } from "@/features/catalog-lifecycle/sqlite-cata
 import { TauriBackupService } from "@/features/backup/tauri-backup-service";
 import { SqliteWeeklyTimeEntryStore } from "@/features/time-entry/sqlite-weekly-time-entry-store";
 import { SqliteExpenseStore } from "@/features/expenses/sqlite-expense-store";
+import { TauriInvoiceService } from "@/features/invoices/tauri-invoice-service";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { isTauri } from "@tauri-apps/api/core";
 
@@ -21,6 +22,7 @@ const catalogLifecycle = new SqliteCatalogLifecycle();
 const backupService = new TauriBackupService();
 const weeklyStore = new SqliteWeeklyTimeEntryStore();
 const expenseStore = new SqliteExpenseStore();
+const invoiceService = new TauriInvoiceService();
 
 function App() {
   const router = useMemo(
@@ -35,6 +37,7 @@ function App() {
                   backupService={backupService}
                   clientCatalog={clientCatalog}
                   expenseStore={expenseStore}
+                  invoiceService={invoiceService}
                   lifecycle={catalogLifecycle}
                   nativeWindow={isTauri() ? getCurrentWindow() : undefined}
                   projectCatalog={projectCatalog}

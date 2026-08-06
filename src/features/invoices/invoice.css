@@ -1,0 +1,586 @@
+.invoice-preview {
+  --invoice-ink: #172033;
+  --invoice-muted: #697386;
+  --invoice-accent: #2457d6;
+  --invoice-accent-soft: #edf3ff;
+  --invoice-rule: #dce2ea;
+  container-type: inline-size;
+  overflow: hidden;
+  border: 1px solid var(--invoice-rule);
+  border-radius: 0.75rem;
+  background: #fff;
+  color: var(--invoice-ink);
+  box-shadow: 0 18px 48px rgb(23 32 51 / 8%);
+  font-family: "Geist Variable", sans-serif;
+}
+
+.invoice-preview__header {
+  border-left: 4px solid var(--invoice-accent);
+  padding: clamp(1.5rem, 4cqi, 3rem);
+}
+
+.invoice-preview__masthead,
+.invoice-preview__identity-grid,
+.invoice-preview__closing,
+.invoice-preview__summary-header,
+.invoice-category-chart__label-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.invoice-preview__masthead {
+  align-items: start;
+}
+
+.invoice-preview__masthead h2 {
+  margin: 0;
+  color: var(--invoice-accent);
+  font-size: clamp(2.25rem, 8cqi, 4.75rem);
+  font-weight: 650;
+  letter-spacing: -0.065em;
+  line-height: 0.9;
+}
+
+.invoice-preview__eyebrow,
+.invoice-preview__meta dt,
+.invoice-preview__metrics dt {
+  margin: 0;
+  color: var(--invoice-muted);
+  font-size: 0.67rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.invoice-preview__sender,
+.invoice-preview__recipient h3 {
+  margin: 0.35rem 0 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.invoice-preview__identity-grid {
+  align-items: end;
+  margin-top: clamp(2rem, 6cqi, 4rem);
+}
+
+.invoice-preview__recipient {
+  min-width: 0;
+  max-width: 22rem;
+}
+
+.invoice-preview__meta {
+  display: grid;
+  min-width: min(100%, 19rem);
+  margin: 0;
+  gap: 0.65rem;
+}
+
+.invoice-preview__meta > div {
+  display: grid;
+  grid-template-columns: minmax(5.5rem, auto) 1fr;
+  gap: 1rem;
+}
+
+.invoice-preview__meta dd,
+.invoice-preview__metrics dd,
+.invoice-preview__total dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.invoice-preview__meta dd {
+  text-align: right;
+  font-size: 0.79rem;
+  font-weight: 550;
+}
+
+.invoice-preview__section,
+.invoice-preview__summary {
+  border-top: 1px solid var(--invoice-rule);
+  padding: clamp(1.5rem, 4cqi, 3rem);
+}
+
+.invoice-preview__section-title,
+.invoice-preview__summary h2 {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+.invoice-preview__table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.invoice-preview__table {
+  width: 100%;
+  min-width: 34rem;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 0.76rem;
+}
+
+.invoice-preview__table th,
+.invoice-preview__table td {
+  overflow-wrap: anywhere;
+  padding: 0.68rem 0.55rem;
+  border-bottom: 1px solid var(--invoice-rule);
+  vertical-align: top;
+}
+
+.invoice-preview__table thead th {
+  color: var(--invoice-muted);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.invoice-preview__table :is(th, td):not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.invoice-preview__work-column {
+  width: 46%;
+}
+
+.invoice-preview__hours-column {
+  width: 12%;
+}
+
+.invoice-preview__money-column {
+  width: 21%;
+}
+
+.invoice-preview__project-row th {
+  padding-top: 1.15rem;
+  color: var(--invoice-accent);
+  font-size: 0.78rem;
+  font-weight: 650;
+  text-align: left !important;
+}
+
+.invoice-preview__work-label {
+  min-width: 0;
+  line-height: 1.45;
+}
+
+.invoice-preview__project-subtotal th,
+.invoice-preview__table tfoot th {
+  color: var(--invoice-muted);
+  font-weight: 500;
+  text-align: right;
+}
+
+.invoice-preview__table tfoot :is(th, td) {
+  border-bottom: 0;
+  padding-top: 1rem;
+  font-weight: 650;
+}
+
+.invoice-preview__expense-table th:first-child,
+.invoice-preview__expense-table td:first-child {
+  width: 19%;
+}
+
+.invoice-preview__expense-table th:nth-child(2),
+.invoice-preview__expense-table td:nth-child(2) {
+  width: 23%;
+}
+
+.invoice-preview__expense-table th:last-child,
+.invoice-preview__expense-table td:last-child {
+  width: 20%;
+}
+
+.invoice-preview__closing {
+  align-items: end;
+  padding: 0 clamp(1.5rem, 4cqi, 3rem) clamp(1.75rem, 5cqi, 3.5rem);
+}
+
+.invoice-preview__payment-note {
+  max-width: 25rem;
+}
+
+.invoice-preview__payment-note h3 {
+  margin: 0 0 0.4rem;
+  color: var(--invoice-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.invoice-preview__payment-note p {
+  margin: 0;
+  font-size: 0.77rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.invoice-preview__total {
+  min-width: min(100%, 15rem);
+  margin: 0;
+  padding-top: 0.85rem;
+  border-top: 2px solid var(--invoice-accent);
+}
+
+.invoice-preview__total dt {
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.invoice-preview__total dd {
+  margin-top: 0.25rem;
+  color: var(--invoice-accent);
+  font-size: clamp(1.45rem, 4cqi, 2rem);
+  font-weight: 680;
+  letter-spacing: -0.035em;
+  text-align: right;
+}
+
+.invoice-preview__summary {
+  background: #fbfcfe;
+}
+
+.invoice-preview__summary-header {
+  align-items: start;
+  margin-bottom: 2rem;
+}
+
+.invoice-preview__summary h2 {
+  font-size: 1.25rem;
+}
+
+.invoice-preview__metrics {
+  display: flex;
+  margin: 0;
+  gap: 2.5rem;
+}
+
+.invoice-preview__metrics dd {
+  margin-top: 0.25rem;
+  font-size: 1.35rem;
+  font-weight: 650;
+}
+
+.invoice-chart + .invoice-chart {
+  margin-top: 2.75rem;
+}
+
+.invoice-daily-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.invoice-daily-chart__viewport {
+  max-width: 100%;
+}
+
+.invoice-daily-chart__guide {
+  stroke: var(--invoice-rule);
+  stroke-dasharray: 2 5;
+  stroke-width: 1;
+}
+
+.invoice-daily-chart__bar {
+  fill: var(--invoice-accent);
+}
+
+.invoice-daily-chart__tick,
+.invoice-daily-chart__date {
+  fill: var(--invoice-muted);
+  font-family: "Geist Variable", sans-serif;
+  font-size: 10px;
+}
+
+.invoice-category-chart__project + .invoice-category-chart__project {
+  margin-top: 1.75rem;
+}
+
+.invoice-category-chart__project h4 {
+  margin: 0 0 0.8rem;
+  color: var(--invoice-accent);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.invoice-category-chart__rows {
+  display: grid;
+  gap: 1rem;
+}
+
+.invoice-category-chart__label-row {
+  align-items: baseline;
+  font-size: 0.76rem;
+}
+
+.invoice-category-chart__label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 550;
+}
+
+.invoice-category-chart__value {
+  flex: 0 0 auto;
+  color: var(--invoice-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.invoice-category-chart__track {
+  height: 0.45rem;
+  margin-top: 0.42rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--invoice-accent-soft);
+}
+
+.invoice-category-chart__fill {
+  display: block;
+  width: var(--invoice-category-share);
+  min-width: 2px;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--invoice-accent);
+}
+
+@container (max-width: 35rem) {
+  .invoice-preview__identity-grid,
+  .invoice-preview__closing,
+  .invoice-preview__summary-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .invoice-preview__meta,
+  .invoice-preview__total {
+    width: 100%;
+  }
+
+  .invoice-preview__metrics {
+    justify-content: space-between;
+  }
+
+  .invoice-daily-chart__viewport {
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-color: var(--invoice-accent) var(--invoice-accent-soft);
+    scrollbar-width: thin;
+  }
+
+  .invoice-daily-chart__viewport::-webkit-scrollbar {
+    height: 0.35rem;
+  }
+
+  .invoice-daily-chart__viewport::-webkit-scrollbar-track {
+    border-radius: 999px;
+    background: var(--invoice-accent-soft);
+  }
+
+  .invoice-daily-chart__viewport::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: var(--invoice-accent);
+  }
+
+  .invoice-daily-chart {
+    width: 47.5rem;
+    max-width: none;
+  }
+
+  .invoice-preview__table-wrap {
+    overflow: visible;
+  }
+
+  .invoice-preview__table {
+    min-width: 0;
+    table-layout: auto;
+  }
+
+  .invoice-preview__table colgroup,
+  .invoice-preview__table thead {
+    display: none;
+  }
+
+  .invoice-preview__table,
+  .invoice-preview__table tbody,
+  .invoice-preview__table tfoot {
+    display: block;
+    width: 100%;
+  }
+
+  .invoice-preview__table tbody tr:not(.invoice-preview__project-row, .invoice-preview__project-subtotal) {
+    display: grid;
+    gap: 0.48rem;
+    padding: 0.8rem 0;
+    border-bottom: 1px solid var(--invoice-rule);
+  }
+
+  .invoice-preview__table tbody tr:not(.invoice-preview__project-row, .invoice-preview__project-subtotal) td {
+    display: grid;
+    width: auto;
+    grid-template-columns: minmax(6.5rem, 38%) minmax(0, 1fr);
+    gap: 0.75rem;
+    padding: 0;
+    border: 0;
+    text-align: left;
+  }
+
+  .invoice-preview__table tbody tr:not(.invoice-preview__project-row, .invoice-preview__project-subtotal) td::before {
+    content: attr(data-label);
+    color: var(--invoice-muted);
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .invoice-preview__table tbody tr:not(.invoice-preview__project-row, .invoice-preview__project-subtotal) td > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .invoice-preview__work-table tbody tr:not(.invoice-preview__project-row, .invoice-preview__project-subtotal) td:not(:first-child) > span,
+  .invoice-preview__expense-table tbody td:last-child > span,
+  .invoice-preview__project-subtotal td > span,
+  .invoice-preview__table tfoot td > span {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .invoice-preview__project-row th {
+    display: block;
+    width: auto;
+    padding: 1.15rem 0 0.35rem;
+    border-bottom: 0;
+  }
+
+  .invoice-preview__project-subtotal,
+  .invoice-preview__table tfoot tr {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.8rem 0;
+    border-bottom: 1px solid var(--invoice-rule);
+  }
+
+  .invoice-preview__project-subtotal :is(th, td),
+  .invoice-preview__table tfoot :is(th, td) {
+    display: block;
+    width: auto;
+    padding: 0;
+    border: 0;
+  }
+
+  .invoice-preview__project-subtotal th,
+  .invoice-preview__table tfoot th {
+    flex: 1 1 auto;
+    width: auto;
+    text-align: left;
+  }
+
+  .invoice-preview__project-subtotal td,
+  .invoice-preview__table tfoot td {
+    flex: 0 0 auto;
+    min-width: max-content;
+    width: max-content;
+    text-align: right;
+  }
+
+  .invoice-preview__table tfoot tr {
+    padding-top: 1rem;
+    border-bottom: 0;
+  }
+}
+
+@page {
+  size: A4;
+  margin: 12mm;
+}
+
+@media print {
+  html[data-invoice-printing],
+  html[data-invoice-printing] body {
+    background: #fff;
+  }
+
+  html[data-invoice-printing] [data-invoice-print-path]:not(.invoice-preview) {
+    display: contents !important;
+  }
+
+  html[data-invoice-printing]
+    [data-invoice-print-path]:not(.invoice-preview)
+    > :not([data-invoice-print-path]) {
+    display: none !important;
+  }
+
+  html[data-invoice-printing] .invoice-preview {
+    position: static;
+    width: 100%;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .invoice-preview__header,
+  .invoice-preview__closing,
+  .invoice-preview__summary-header,
+  .invoice-chart,
+  .invoice-preview__table tr {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .invoice-preview__section-title,
+  .invoice-preview__expense-table thead {
+    break-after: avoid-page;
+    page-break-after: avoid;
+  }
+
+  .invoice-preview__table-wrap {
+    overflow: visible;
+  }
+
+  .invoice-preview__table {
+    min-width: 0;
+  }
+
+  .invoice-preview__table thead {
+    display: table-header-group;
+  }
+
+  .invoice-preview__table tfoot {
+    display: table-row-group;
+  }
+
+  .invoice-preview__project-row {
+    break-after: avoid;
+  }
+
+  .invoice-preview__table tfoot,
+  .invoice-preview__closing {
+    break-before: avoid;
+  }
+
+  .invoice-preview__summary {
+    break-before: page;
+  }
+
+  .invoice-daily-chart__viewport {
+    overflow: visible;
+  }
+
+  .invoice-daily-chart {
+    width: 100%;
+    max-width: 100%;
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "generateWorkCategories": 48,
+  "request": {
+    "clientId": "client-1", "senderName": "Northstar Studio", "issueDate": "2026-02-08", "invoiceNumber": "INV-LONG-001",
+    "periodStart": "2026-02-01", "periodEnd": "2026-02-28", "includedExpenseIds": null,
+    "draftRateOverridesMinor": {}, "paymentNoteEnabled": false, "paymentNote": "",
+    "includeDailyActivity": true, "includeWorkCategoryBreakdown": true
+  },
+  "source": {
+    "client": { "id": "client-1", "name": "Atlas Labs", "currencyCode": "EUR", "hourlyRateMinor": 12000 },
+    "projects": [{ "id": "project-1", "clientId": "client-1", "name": "Large delivery programme", "hourlyRateOverrideMinor": null, "archived": false }],
+    "tasks": [],
+    "timeEntries": [],
+    "expenses": []
+  }
+}

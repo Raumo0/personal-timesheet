@@ -2,15 +2,15 @@
 
 See `proposal.md` for motivation. Reports is currently an empty routed destination. Time entries, catalog rates, and Expenses already persist locally in SQLite, but there is no billing projection or PDF renderer. The existing Tauri dialog plugin already supplies a cross-platform save path.
 
-The feature crosses React presentation, exact billing calculations, SQLite reads, native file output, and visual PDF composition. The document must be deterministic and independently testable without coupling the preview to the PDF library.
+The feature crosses React presentation, exact billing calculations, SQLite reads, and native WebView printing. The first implementation used an independent Rust PDF layout and exposed visible preview/export drift. The preview must now be the document renderer rather than merely a second representation of shared data.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- Keep source selection, billing calculation, chart data, and PDF layout behind a small native invoice interface.
-- Produce the same amounts and chart inputs in preview and export.
-- Render selectable text, vector tables, and vector charts in a polished A4 PDF.
+- Keep source selection, billing calculation, and chart data behind a small native invoice interface.
+- Render preview and PDF from the same React document tree and CSS design system.
+- Render selectable text, CSS tables, and SVG charts in a polished A4 PDF.
 - Keep the first slice migration-free and usable offline.
 
 **Non-Goals:**
@@ -18,20 +18,19 @@ The feature crosses React presentation, exact billing calculations, SQLite reads
 - Persist invoice entities, snapshots, numbering sequences, payment state, or source-entry billing state.
 - Build a reusable analytics/reporting platform before the invoice.
 - Implement legal, tax, address, or company-profile rules.
-- Guarantee pixel identity between the responsive React preview and fixed A4 output; they share content and hierarchy, not a rendering engine.
+- Introduce a second PDF-specific component tree or drawing engine.
 
 ## Decisions
 
 ### Use one native invoice facade
 
-Add an `invoice` Rust module with two Tauri commands:
+Add an `invoice` Rust module with one Tauri command:
 
 - `prepare_invoice(request) -> InvoiceDocument`
-- `export_invoice_pdf(path, request) -> ExportReceipt`
 
 `InvoiceRequest` contains the selected Client, inclusive dates, document identity including an optional manual Invoice no., included Expense IDs, per-line draft rate overrides, and optional-section settings. `InvoiceDocument` contains normalized Projects, Work performed lines, Expenses, exact minor-unit totals, Daily activity points and ticks, Work category shares, and validation issues.
 
-Both commands call the same query and composition path. Export recomposes from the request instead of accepting frontend-calculated totals, preventing preview/export drift and stale source data from being silently exported. The React side owns only form state and renders the returned document.
+The command owns source queries and all billing calculations. Before printing, the frontend refreshes the document from the current request so the visible print tree uses authoritative current data rather than frontend-calculated totals. The React side owns form state and renders the returned document.
 
 Alternatives considered:
 
@@ -61,22 +60,24 @@ Task names are externally labelled `Work category`. Direct Project time becomes 
 
 This preserves the existing time-entry model without inventing catalog data or treating a Task as an assigned to-do.
 
-### Generate fixed-layout vector PDF in Rust
+### Print the React document instead of redrawing it
 
-Use a pinned `printpdf` dependency through a narrow `InvoicePdfRenderer` module. Build pages from explicit PDF operations, embedded licensed font assets, measured text, reusable `Work performed` and Expenses table pagination, and small chart primitives. Do not use the crate's evolving HTML-to-PDF path for the primary renderer: the approved document needs predictable wrapping, chart axes, and page boundaries.
+`InvoicePreview` is the single document component. Screen styles present that component inside the generator; print orchestration marks its ancestor path so `@media print` removes sibling application chrome and controls from layout while flattening only those ancestors. The existing preview therefore becomes the sole normal-flow print document without cloning or absolutely positioning it. A4 rules preserve colors and apply deterministic breaks to document sections and table rows. The same HTML, CSS, fonts, and SVG chart components therefore reach both preview and PDF.
 
-The renderer accepts only `InvoiceDocument`; it does not query data or calculate money. Golden structural tests inspect page count, text, and bounds from representative fixtures. Rendered PDF fixtures are rasterized during deterministic validation for visual review at A4 dimensions.
+Export invokes a registered Tauri command that calls the current WebView's native `print()` API. This keeps the operating-system print dialog behind an explicit native boundary instead of depending on a direct DOM `window.print()` call that can return without opening a dialog in the packaged WebView. The operating system owns destination selection, including Save as PDF. The application does not rasterize the preview or ship a browser runtime.
 
 Alternatives considered:
 
-- WebView printing lacks a stable cross-platform Tauri contract for selecting and writing the exact PDF.
-- Rasterizing the preview would make text less accessible and produce larger, lower-quality documents.
+- Keeping `printpdf` preserves direct filesystem writes but repeats every layout decision and caused the observed mismatch.
+- `html2canvas` and screenshot-based PDF libraries preserve pixels but lose selectable vector text and degrade charts.
+- React PDF libraries still require a second renderer-specific component tree.
+- Shipping Playwright or Chromium would reproduce browser output but add an unsuitable runtime dependency to the desktop application.
 
-### Share semantic chart models, not drawing code
+### Share one chart implementation
 
 The composer returns Daily activity values, an hours-axis upper bound, and approximately five to eight human-readable ticks selected by a deterministic nice-step function. It also returns grouped Work category durations and percentage shares.
 
-React uses those values for the preview, while the PDF renderer draws them with native vector primitives. This keeps scales and labels identical while allowing each surface to use its appropriate layout engine. Zero-hour dates remain in the Daily activity model.
+React uses those values once in SVG chart components shared by screen and print. Zero-hour dates remain in the Daily activity model, and print CSS may resize the chart container without changing its direction, scale, ticks, or labels.
 
 ### Treat document sections as explicit options
 
@@ -84,18 +85,18 @@ React uses those values for the preview, while the PDF renderer draws them with 
 
 The UI presents these settings together under document customization instead of scattering them through the preview.
 
-### Reuse the native save dialog and write atomically
+### Use the system print destination flow
 
-The frontend reuses `@tauri-apps/plugin-dialog` to request a `.pdf` path and passes the chosen path to the export command. The native side renders bytes, writes a sibling temporary file, and atomically replaces the destination where the platform permits. A cancelled dialog never invokes export. A failed render or write returns a stable error category and leaves the draft visible.
+The frontend refreshes the authoritative draft, marks the existing preview and its ancestor path for invoice-only printing, waits for fonts and the next rendered frame, and asks the invoice adapter to invoke the registered native print command for the current WebView. Because the native command only schedules WebKit's print operation, successful command return does not clear print mode. The `afterprint` event clears it after cancellation or saving; command failure and component unmount clear it immediately. Cancelling or saving does not modify source data, and a failure to start printing becomes a retryable interface error.
 
 ## Risks / Trade-offs
 
 - **[Current rates are not historical rates]** → Show every resolved rate in the draft, permit explicit draft replacement, and state in non-goals that invoice history and rate snapshots require a later change.
-- **[Preview and PDF use different drawing engines]** → Share one native `InvoiceDocument`, deterministic chart ticks, and render representative PDFs during validation.
-- **[Long tables or labels can overflow fixed pages]** → Centralize text measurement, wrapping, table row height, and page-break logic; validate short, long, and multi-project fixtures.
-- **[PDF dependency increases native build size]** → Disable unused image/HTML features, embed only the required font weights, and record the release-size delta during validation.
+- **[WebViews can differ in pagination details]** → Keep document geometry in standards-based print CSS, avoid fragile fixed coordinates, and render representative A4 PDFs with Chromium in deterministic validation while manually checking the native macOS flow.
+- **[Long tables or labels can overflow fixed pages]** → Use wrapping plus CSS break rules on semantic sections and rows; validate short, long, and multi-project fixtures.
+- **[System print dialogs do not report save versus cancel]** → Treat return from the print flow as neutral completion, preserve the draft, and never infer invoice history or payment state.
 - **[Repeated export can bill the same source twice]** → Keep this limitation explicit in the interface and non-goals; invoice history and billed-state ownership need a separate design.
 
 ## Migration Plan
 
-No database migration is required. Add the native composer and renderer behind new commands, then replace the Reports empty state with the invoice generator. Rollback removes the route content and commands without changing saved user data or exported files.
+No database migration is required. Remove the Rust PDF renderer and its assets, keep the native composer, and route export through print styles on the existing React preview. Rollback restores the prior renderer without changing saved user data or exported files.

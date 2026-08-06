@@ -4,6 +4,7 @@ pub mod catalog_lifecycle;
 pub mod client_update;
 mod database;
 pub mod expense_mutation;
+pub mod invoice;
 pub mod weekly_time_entry;
 
 use std::path::Path;
@@ -128,6 +129,38 @@ async fn apply_expense_mutation(
     .await
 }
 
+#[tauri::command]
+async fn prepare_invoice(
+    app: AppHandle,
+    request: invoice::InvoiceRequest,
+) -> Result<invoice::InvoiceDocument, String> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| format!("application data directory is unavailable: {error}"))?;
+    invoice::prepare_invoice_at_path(
+        &backup::BackupPaths::from_config_dir(&config_dir).live_database,
+        request,
+    )
+    .await
+}
+
+#[tauri::command]
+fn print_invoice(webview: tauri::WebviewWindow) -> Result<(), String> {
+    #[cfg(desktop)]
+    {
+        return webview
+            .print()
+            .map_err(|error| format!("invoice print flow could not be started: {error}"));
+    }
+
+    #[cfg(not(desktop))]
+    {
+        let _ = webview;
+        Err("invoice printing is unavailable on this platform".to_owned())
+    }
+}
+
 fn application_context() -> tauri::Context<tauri::Wry> {
     tauri::generate_context!()
 }
@@ -151,7 +184,9 @@ pub fn run() {
             apply_catalog_lifecycle,
             apply_client_update,
             apply_weekly_time_entry_mutation,
-            apply_expense_mutation
+            apply_expense_mutation,
+            prepare_invoice,
+            print_invoice
         ])
         .on_page_load(|webview, payload| {
             let window = webview.window();

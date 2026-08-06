@@ -25,6 +25,8 @@ skill, CI workflow, or separate Validation Manifest.
 | 100 | catalog-lifecycle-app-shell | path:openspec/changes/manage-catalog-archive-lifecycle | yes | 300 | `python3 tools/agentic_workflow/validate_catalog_lifecycle_app_shell.py` |
 | 110 | catalog-lifecycle-integrated | path:openspec/changes/manage-catalog-archive-lifecycle | yes | 900 | `python3 tools/agentic_workflow/validate_catalog_lifecycle_integrated.py` |
 | 120 | catalog-lifecycle-recovery | path:openspec/changes/manage-catalog-archive-lifecycle | yes | 300 | `python3 tools/agentic_workflow/validate_catalog_lifecycle_recovery.py` |
+| 130 | invoice-pdf | path:openspec/changes/generate-invoice-pdf | yes | 900 | `python3 tools/agentic_workflow/validate_invoice_pdf.py` |
+| 140 | invoice-frontend | path:openspec/changes/generate-invoice-pdf | yes | 900 | `python3 tools/agentic_workflow/validate_invoice_frontend.py` |
 
 ## Applicability
 
