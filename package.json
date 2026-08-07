@@ -12,7 +12,7 @@
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "node tools/run-tauri.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

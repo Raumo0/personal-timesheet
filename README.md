@@ -20,8 +20,8 @@ pnpm install
 pnpm tauri dev
 ```
 
-The second command starts Vite and opens the native Personal Timesheet window.
-Press `Ctrl+C` in the terminal to stop it.
+The second command starts Vite and opens the native Personal Timesheet Dev
+window. Press `Ctrl+C` in the terminal to stop it.
 
 To run only the browser interface during frontend work:
 
@@ -83,6 +83,31 @@ Run the native application:
 ```bash
 pnpm tauri dev
 ```
+
+### Development and production data
+
+Development command: `pnpm tauri dev`. This supported entry point applies the
+development identity `com.personal.timesheet.dev` automatically. Direct
+`pnpm exec tauri dev` invocation bypasses that protection and is unsupported.
+
+Production build command: `pnpm tauri build`. It keeps the installed
+application identity `com.personal.timesheet`.
+
+On macOS, the SQLite files are stored at these exact paths:
+
+- Production:
+  `~/Library/Application Support/com.personal.timesheet/personal-timesheet.db`
+- Development:
+  `~/Library/Application Support/com.personal.timesheet.dev/personal-timesheet.db`
+
+On Windows and Linux, Tauri uses the platform-specific application
+configuration directory. The final application directory is derived from the
+same environment identifier, and the database filename remains
+`personal-timesheet.db`.
+
+No data is automatically copied, migrated, or synchronized between the two
+identities. Existing production data stays in the production directory, while
+the first development launch starts with separate development data.
 
 Build the frontend:
 
