@@ -128,6 +128,10 @@ pnpm test
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
+For bulk initial data entry, use the local preview-first importer documented in
+[`docs/data-import.md`](docs/data-import.md). It requires an existing current,
+empty database and a versioned JSON manifest.
+
 ## Specification Workflow
 
 OpenSpec stores implemented behavior in `openspec/specs/` and proposed changes

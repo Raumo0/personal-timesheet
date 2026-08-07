@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://personal-timesheet.local/schema/import-v1.json",
+  "title": "Personal Timesheet import manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "clients", "projects", "tasks", "timeEntries", "expenses"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "clients": { "type": "array", "items": { "$ref": "#/$defs/client" } },
+    "projects": { "type": "array", "items": { "$ref": "#/$defs/project" } },
+    "tasks": { "type": "array", "items": { "$ref": "#/$defs/task" } },
+    "timeEntries": { "type": "array", "items": { "$ref": "#/$defs/timeEntry" } },
+    "expenses": { "type": "array", "items": { "$ref": "#/$defs/expense" } }
+  },
+  "$defs": {
+    "id": { "type": "string", "minLength": 1, "pattern": "^\\S(?:.*\\S)?$" },
+    "name": { "type": "string", "minLength": 1, "pattern": "\\S" },
+    "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+    "money": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "positiveMoney": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "date": { "type": "string", "format": "date" },
+    "client": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "name", "currencyCode", "hourlyRateMinor"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" }, "name": { "$ref": "#/$defs/name" },
+        "currencyCode": { "$ref": "#/$defs/currency" },
+        "hourlyRateMinor": { "oneOf": [{ "$ref": "#/$defs/money" }, { "type": "null" }] }
+      }
+    },
+    "project": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "clientId", "name", "hourlyRateOverrideMinor"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" }, "clientId": { "$ref": "#/$defs/id" },
+        "name": { "$ref": "#/$defs/name" },
+        "hourlyRateOverrideMinor": { "oneOf": [{ "$ref": "#/$defs/money" }, { "type": "null" }] }
+      }
+    },
+    "task": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "projectId", "name", "hourlyRateOverrideMinor"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" }, "projectId": { "$ref": "#/$defs/id" },
+        "name": { "$ref": "#/$defs/name" },
+        "hourlyRateOverrideMinor": { "oneOf": [{ "$ref": "#/$defs/money" }, { "type": "null" }] }
+      }
+    },
+    "timeEntry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "entryDate", "durationMinutes", "projectId", "taskId"],
+      "oneOf": [
+        { "properties": { "projectId": { "$ref": "#/$defs/id" }, "taskId": { "type": "null" } } },
+        { "properties": { "projectId": { "type": "null" }, "taskId": { "$ref": "#/$defs/id" } } }
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" }, "entryDate": { "$ref": "#/$defs/date" },
+        "durationMinutes": { "type": "integer", "minimum": 1, "maximum": 1440 },
+        "projectId": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "taskId": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] }
+      }
+    },
+    "expense": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "clientId", "projectId", "expenseDate", "description", "originalCurrencyCode", "originalAmountMinor", "billingCurrencyCode", "billingAmountMinor", "appliedRate"],
+      "oneOf": [
+        { "properties": { "clientId": { "$ref": "#/$defs/id" }, "projectId": { "type": "null" } } },
+        { "properties": { "clientId": { "type": "null" }, "projectId": { "$ref": "#/$defs/id" } } }
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "clientId": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "projectId": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "expenseDate": { "$ref": "#/$defs/date" }, "description": { "$ref": "#/$defs/name" },
+        "originalCurrencyCode": { "$ref": "#/$defs/currency" },
+        "originalAmountMinor": { "$ref": "#/$defs/positiveMoney" },
+        "billingCurrencyCode": { "$ref": "#/$defs/currency" },
+        "billingAmountMinor": { "$ref": "#/$defs/positiveMoney" },
+        "appliedRate": { "type": "string", "pattern": "^(?=.*[1-9])[0-9]+(?:\\.[0-9]{1,12})?$" }
+      }
+    }
+  }
+}
