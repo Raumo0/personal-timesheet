@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Personal Timesheet Dev",
+  "identifier": "com.personal.timesheet.dev",
+  "app": {
+    "windows": [
+      {
+        "title": "Personal Timesheet Dev",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 640,
+        "visible": false
+      }
+    ]
+  }
+}

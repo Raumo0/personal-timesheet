@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "clients": [
+    { "id": "client-acme", "name": "Acme Consulting", "currencyCode": "EUR", "hourlyRateMinor": 12500 }
+  ],
+  "projects": [
+    { "id": "project-website", "clientId": "client-acme", "name": "Website", "hourlyRateOverrideMinor": null }
+  ],
+  "tasks": [
+    { "id": "task-discovery", "projectId": "project-website", "name": "Discovery", "hourlyRateOverrideMinor": 15000 }
+  ],
+  "timeEntries": [
+    { "id": "time-2026-08-07", "entryDate": "2026-08-07", "durationMinutes": 90, "projectId": null, "taskId": "task-discovery" }
+  ],
+  "expenses": [
+    { "id": "expense-train", "clientId": null, "projectId": "project-website", "expenseDate": "2026-08-07", "description": "Train", "originalCurrencyCode": "EUR", "originalAmountMinor": 2500, "billingCurrencyCode": "EUR", "billingAmountMinor": 2500, "appliedRate": "1" }
+  ]
+}

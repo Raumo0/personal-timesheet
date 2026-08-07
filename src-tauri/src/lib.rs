@@ -2,6 +2,7 @@
 pub mod backup;
 pub mod catalog_lifecycle;
 pub mod client_update;
+pub mod data_import;
 mod database;
 pub mod expense_mutation;
 pub mod invoice;
